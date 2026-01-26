@@ -4,6 +4,7 @@ src/utils/config.py - Game configuration
 
 from dataclasses import dataclass, field
 from typing import Dict, Any, Tuple, List
+import random
 import json
 import os
 from enum import Enum
@@ -82,7 +83,6 @@ class GameConfig:
     fps: int = 60
     
     # ===== PLAYER SETTINGS =====
-    human_players: int = 1
     ai_count: int = 2  # Number of AI opponents
     
     # ===== DIFFICULTY =====
@@ -138,23 +138,20 @@ class GameConfig:
     })
 
     ai_open_answer_accuracy: Dict[Difficulty, float] = field(default_factory=lambda: {
-        Difficulty.EASY: 0.3,    # 30% within 10% of correct answer
-        Difficulty.MEDIUM: 0.5,  # 50% within 10% of correct answer
-        Difficulty.HARD: 0.8,    # 80% within 10% of correct answer
+        Difficulty.EASY: 0.45,    # 45% within 10% of correct answer
+        Difficulty.MEDIUM: 0.6,  # 60% within 10% of correct answer
+        Difficulty.HARD: 0.85,    # 85% within 10% of correct answer
     })
     
-    ai_think_time_ms: Dict[Difficulty, int] = field(default_factory=lambda: {
-        Difficulty.EASY: 2000,    # 2 seconds
-        Difficulty.MEDIUM: 1500,  # 1.5 seconds
-        Difficulty.HARD: 1000,    # 1 second
+    ai_think_time_ranges: Dict[Difficulty, Tuple[int, int]] = field(default_factory=lambda: {
+        Difficulty.EASY: (3000, 5000),    # 3-5 seconds
+        Difficulty.MEDIUM: (2000, 4000),  # 2-4 seconds
+        Difficulty.HARD: (1000, 3000),    # 1-3 seconds
     })
     
     # ===== QUESTION TIMING =====
     multiple_choice_time: int = 30  # seconds for multiple choice questions
     open_answer_time: int = 45  # seconds for open answer questions
-    
-    # ===== GAME FLOW SETTINGS =====
-    skip_eliminated_players: bool = True  # Skip players who lost capitals (Clarification 3)
     
     # ===== UI SETTINGS =====
     colors: ColorScheme = field(default_factory=ColorScheme)
@@ -176,21 +173,21 @@ class GameConfig:
     
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
-        # Validate AI count (Rule 2a: 1, 2, or 3)
+        # Validate AI count
         self.ai_count = max(1, min(self.ai_count, 3))
         
-        # Validate region count (Rule 2d: 16-32)
+        # Validate region count
         self.region_count = max(self.min_regions, min(self.region_count, self.max_regions))
         
-        # Validate turns per player (Rule 2e: 5-20)
+        # Validate turns per player
         self.turns_per_player = max(self.min_turns_per_player, 
                                    min(self.turns_per_player, self.max_turns_per_player))
         
-        # Validate capital distance (implementation)
+        # Validate capital distance
         self.min_capital_distance = max(1, self.min_capital_distance)
         
         # Ensure total players doesn't exceed available colors
-        total_players = self.human_players + self.ai_count
+        total_players = 1 + self.ai_count
         if total_players > len(self.colors.player_colors):
             raise ValueError(f"Maximum {len(self.colors.player_colors)} players supported")
         
@@ -224,7 +221,7 @@ class GameConfig:
         Returns:
             Total player count
         """
-        return self.human_players + self.ai_count
+        return 1 + self.ai_count
     
     def get_player_color(self, player_id: int) -> Tuple[int, int, int]:
         """
@@ -261,34 +258,8 @@ class GameConfig:
         Returns:
             Think time in milliseconds
         """
-        return self.ai_think_time_ms.get(self.difficulty, 1500)
-    
-    def get_region_value(self, is_capital: bool = False, 
-                        has_been_captured: bool = False,
-                        captured_via_capital: bool = False) -> int:
-        """
-        Get point value for a region based on its state.
-        
-        Args:
-            is_capital: Whether this region contains a capital
-            has_been_captured: Whether this region has been captured in battle before
-            captured_via_capital: Whether this region was captured via capital capture
-            
-        Returns:
-            Point value of the region
-        """
-        if is_capital:
-            return self.capital_points
-        
-        if captured_via_capital:
-            # When captured via capital, keep current value (Clarification 2 & 7)
-            # This means we need to track the region's current value separately
-            raise ValueError("Region value for capital-captured regions must be tracked individually")
-        
-        if has_been_captured:
-            return self.captured_region_points
-        
-        return self.initial_region_points
+        time_range = self.ai_think_time_ranges.get(self.difficulty, (1500, 2500))
+        return random.randint(time_range[0], time_range[1])
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert configuration to dictionary for serialization."""
@@ -306,7 +277,7 @@ class GameConfig:
         }
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GameConfig":
+    def from_dict(cls, data: Dict[str, Any]) -> GameConfig:
         """Create configuration from dictionary."""
         config = cls()
         
@@ -367,7 +338,6 @@ if __name__ == "__main__":
     print(f"Region points: {config.initial_region_points} (initial), {config.captured_region_points} (battle capture)")
     print(f"Defense bonus: {config.defense_bonus} pts")
     print(f"AI accuracy: {config.get_ai_accuracy()*100:.1f}% (MC), {config.get_ai_accuracy('open_answer')*100:.1f}% (OA)")
-    print(f"Skip eliminated: {config.skip_eliminated_players}")
     
     # Save default config
     config.save()
