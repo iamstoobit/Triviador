@@ -1,15 +1,8 @@
-"""
-src/game/state.py - Game state classes and data structures
-Defines all core game objects: Players, Regions, Capitals, and GameState
-"""
-
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple, Set, Any
+from typing import List, Dict, Optional, Tuple, Any
 from enum import Enum, auto
-import random
 import json
-import copy
 from datetime import datetime
 
 
@@ -53,20 +46,11 @@ class Player:
     name: str
     player_type: PlayerType
     color: Tuple[int, int, int]
-    score: int = 1000  # Starting score (Clarification 1)
+    score: int = 1000  # Starting score
     is_alive: bool = True
     regions_controlled: List[int] = field(default_factory=list)  # Region IDs
     capital_region_id: Optional[int] = None
     turns_played: int = 0
-    questions_answered: int = 0
-    correct_answers: int = 0
-    regions_captured: int = 0
-    regions_lost: int = 0
-    
-    def __post_init__(self) -> None:
-        """Validate player data after initialization."""
-        if self.score < 0:
-            self.score = 0
     
     def add_region(self, region_id: int) -> None:
         """Add a region to player's control."""
@@ -82,15 +66,8 @@ class Player:
         """
         if region_id in self.regions_controlled:
             self.regions_controlled.remove(region_id)
-            self.regions_lost += 1
             return True
         return False
-    
-    def get_accuracy(self) -> float:
-        """Get player's question accuracy."""
-        if self.questions_answered == 0:
-            return 0.0
-        return self.correct_answers / self.questions_answered
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert player to serializable dictionary."""
@@ -103,11 +80,7 @@ class Player:
             'is_alive': self.is_alive,
             'regions_controlled': self.regions_controlled.copy(),
             'capital_region_id': self.capital_region_id,
-            'turns_played': self.turns_played,
-            'questions_answered': self.questions_answered,
-            'correct_answers': self.correct_answers,
-            'regions_captured': self.regions_captured,
-            'regions_lost': self.regions_lost,
+            'turns_played': self.turns_played
         }
     
     @classmethod
@@ -122,11 +95,7 @@ class Player:
             is_alive=data['is_alive'],
             regions_controlled=data['regions_controlled'],
             capital_region_id=data['capital_region_id'],
-            turns_played=data['turns_played'],
-            questions_answered=data['questions_answered'],
-            correct_answers=data['correct_answers'],
-            regions_captured=data['regions_captured'],
-            regions_lost=data['regions_lost'],
+            turns_played=data['turns_played']
         )
 
 
@@ -141,7 +110,7 @@ class Capital:
     owner_id: int
     current_hp: int = 3
     max_hp: int = 3
-    turns_since_last_attack: int = 0  # For HP regeneration (Clarification 1)
+    turns_since_last_attack: int = 0  # For HP regeneration
     is_destroyed: bool = False
     
     def take_damage(self) -> bool:
@@ -153,18 +122,28 @@ class Capital:
         """
         if self.current_hp > 0:
             self.current_hp -= 1
-            self.turns_since_last_attack = 0  # Reset regeneration counter
+            self.register_attack()  # Reset regeneration counter
             
             if self.current_hp <= 0:
                 self.is_destroyed = True
                 return True
         return False
     
+    def register_attack(self) -> None:
+        """
+        Register that the capital was attacked.
+        
+        Args:
+            was_damaging: Whether the attack caused damage
+        """
+        self.turns_since_last_attack = 0  # Reset regeneration counter
+    
     def regenerate(self) -> None:
-        """Regenerate 1 HP if conditions are met (Clarification 1)."""
-        if (self.turns_since_last_attack >= 3 and 
-            self.current_hp < self.max_hp and 
-            not self.is_destroyed):
+        """Regenerate 1 HP if conditions are met."""
+        if (not self.is_destroyed and
+            self.turns_since_last_attack >= 3 and
+            self.current_hp < self.max_hp
+            ):
             self.current_hp += 1
             self.turns_since_last_attack = 0  # Reset after regeneration
     
@@ -210,7 +189,7 @@ class Region:
     region_type: RegionType = RegionType.NORMAL
     fortification: FortificationLevel = FortificationLevel.NONE
     adjacent_regions: List[int] = field(default_factory=list)  # IDs of adjacent regions
-    point_value: int = 500  # Current point value (Rule 4, Clarification 2 & 7)
+    point_value: int = 500  # Current point value
     has_been_captured: bool = False  # Whether captured in battle before
     original_owner: Optional[int] = None  # First owner (for point tracking)
     
@@ -221,7 +200,7 @@ class Region:
     
     def fortify(self) -> bool:
         """
-        Fortify the region (Rule 7).
+        Fortify the region.
         
         Returns:
             True if fortification succeeded, False if already fortified
@@ -247,15 +226,14 @@ class Region:
             new_owner_id: New owner's player ID
             via_capital_capture: Whether this is due to capital capture (affects point value)
         """
-        old_owner = self.owner_id
         self.owner_id = new_owner_id
         
-        # Update point value based on capture method (Rule 4, Clarification 2 & 7)
+        # Update point value based on capture method
         if not via_capital_capture and not self.has_been_captured:
             # First battle capture - increase to 800 points
             self.point_value = 800
             self.has_been_captured = True
-        # If via_capital_capture, keep current point value (Clarification 7)
+        # If via_capital_capture, keep current point value
     
     def is_adjacent_to(self, other_region_id: int) -> bool:
         """Check if this region is adjacent to another region."""
@@ -350,7 +328,7 @@ class GameState:
     current_battle: Optional[BattleResult] = None
     battle_phase: int = 0  # 0 = first MC, 1 = OA if needed
     
-    # Occupation phase (Rule 6)
+    # Occupation phase
     occupation_ranking: List[int] = field(default_factory=list)  # Player IDs in order
     occupation_regions_remaining: List[int] = field(default_factory=list)  # Region IDs available
     
@@ -371,7 +349,7 @@ class GameState:
     def _sync_capitals(self) -> None:
         """Ensure capitals dict is consistent with regions."""
         # Remove capitals for regions that don't exist or aren't capitals
-        region_ids_to_remove = []
+        region_ids_to_remove: List[int] = []
         for region_id, capital in self.capitals.items():
             if (region_id not in self.regions or 
                 self.regions[region_id].region_type != RegionType.CAPITAL):
@@ -402,7 +380,7 @@ class GameState:
         if not player:
             return []
         
-        regions_list = []
+        regions_list: List[Region] = []
         for region_id in player.regions_controlled:
             if region_id in self.regions:
                 regions_list.append(self.regions[region_id])
@@ -419,13 +397,13 @@ class GameState:
             List of enemy regions that are adjacent to player's regions
         """
         player_regions = self.get_player_regions(player_id)
-        adjacent_enemy_regions = []
-        visited_region_ids = set()
+        adjacent_enemy_regions: List[Region] = []
+        visited_region_ids: set[int] = set()
         
         for player_region in player_regions:
             for adjacent_id in player_region.adjacent_regions:
-                if (adjacent_id in visited_region_ids or 
-                    adjacent_id not in self.regions):
+                if (adjacent_id in visited_region_ids or  # Already visited
+                    adjacent_id not in self.regions):  # Region does not exist
                     continue
                 
                 adjacent_region = self.regions[adjacent_id]
@@ -436,10 +414,10 @@ class GameState:
         
         return adjacent_enemy_regions
     
-    def get_available_regions_for_occupation(self, player_id: int) -> List[Region]:
+    def get_available_regions_for_occupation(self, player_id: int) -> Tuple[List[Region],List[Region]]:
         """
         Get regions available for a player to occupy during occupation phase.
-        Prioritizes adjacent regions, then any unoccupied region (Rule 6).
+        Prioritizes adjacent regions, then any unoccupied region.
         
         Args:
             player_id: Player trying to occupy
@@ -449,21 +427,21 @@ class GameState:
         """
         player = self.players.get(player_id)
         if not player:
-            return []
+            return [], []
         
         # Get all unoccupied regions
-        unoccupied_regions = [
-            region for region in self.regions.values() 
-            if region.owner_id is None
-        ]
+        unoccupied_regions: List[Region] = []
+        for region in self.regions.values():
+            if region.owner_id is None:
+                unoccupied_regions.append(region)
         
         if not player.regions_controlled:
             # Player has no regions yet (initial occupation) - return all
-            return unoccupied_regions
+            return [], unoccupied_regions
         
         # Separate into adjacent and non-adjacent
-        adjacent_regions = []
-        non_adjacent_regions = []
+        adjacent_regions: List[Region] = []
+        non_adjacent_regions: List[Region] = []
         
         player_region_ids = set(player.regions_controlled)
         
@@ -479,28 +457,28 @@ class GameState:
             else:
                 non_adjacent_regions.append(region)
         
-        # Return adjacent first, then non-adjacent (Rule 6)
-        return adjacent_regions + non_adjacent_regions
+        # Return adjacent first, then non-adjacent
+        return adjacent_regions, non_adjacent_regions
     
-    def eliminate_player(self, player_id: int, conqueror_id: int) -> None:
+    def eliminate_player(self, eliminated_id: int, conqueror_id: int) -> None:
         """
-        Eliminate a player who lost their capital (Rule 9).
+        Eliminate a player who lost their capital.
         
         Args:
-            player_id: Player being eliminated
+            eliminated_id: Player being eliminated
             conqueror_id: Player who captured the capital
         """
-        player = self.players.get(player_id)
+        eliminated = self.players.get(eliminated_id)
         conqueror = self.players.get(conqueror_id)
         
-        if not player or not conqueror:
+        if not eliminated or not conqueror:
             return
         
         # Mark player as dead
-        player.is_alive = False
+        eliminated.is_alive = False
         
-        # Transfer regions (Clarification 7)
-        for region_id in player.regions_controlled:
+        # Transfer regions
+        for region_id in eliminated.regions_controlled:
             if region_id in self.regions:
                 region = self.regions[region_id]
                 # Capture via capital - keep current point value
@@ -508,11 +486,11 @@ class GameState:
                 conqueror.add_region(region_id)
         
         # Clear player's regions
-        player.regions_controlled.clear()
+        eliminated.regions_controlled.clear()
         
-        # Transfer score (Rule 9)
-        conqueror.score += player.score
-        player.score = 0
+        # Transfer score
+        conqueror.score += eliminated.score
+        eliminated.score = 0
     
     def get_alive_players(self) -> List[Player]:
         """Get all alive players."""
@@ -520,7 +498,7 @@ class GameState:
     
     def get_player_turn_order(self) -> List[int]:
         """
-        Get player turn order based on score (Rule 7, Clarification 5a).
+        Get player turn order based on score at the end of the occupation phase.
         Lowest score goes first.
         
         Returns:
@@ -627,19 +605,16 @@ def calculate_distance(pos1: Tuple[float, float], pos2: Tuple[float, float]) -> 
 
 
 if __name__ == "__main__":
-    # Test the game state classes
     print("=== Testing Game State Classes ===")
     
-    # Create a test player
     player = Player(
         player_id=0,
         name="Test Player",
         player_type=PlayerType.HUMAN,
         color=(25, 118, 210)
     )
-    print(f"Created player: {player.name} (ID: {player.player_id})")
+    print(f"Created player: {player.name} with {len(player.regions_controlled)} regions")
     
-    # Create a test region
     region = Region(
         region_id=1,
         name="Test Region",
@@ -648,18 +623,16 @@ if __name__ == "__main__":
     )
     print(f"Created region: {region.name}")
     
-    # Create a test capital
     capital = Capital(region_id=1, owner_id=0)
     print(f"Created capital with {capital.current_hp}/{capital.max_hp} HP")
     
-    # Test damage
-    capital.take_damage()
-    print(f"Capital after damage: {capital.current_hp}/{capital.max_hp} HP")
+    # Test attack registration
+    capital.register_attack()
+    print(f"Capital attacked, regeneration counter: {capital.turns_since_last_attack}")
     
-    # Create game state
     game_state = GameState()
     game_state.add_player(player)
     game_state.add_region(region)
     
-    print(f"Game state created with {len(game_state.players)} player and {len(game_state.regions)} region")
+    print(f"Game state created with {len(game_state.players)} player")
     print("All classes working correctly!")
