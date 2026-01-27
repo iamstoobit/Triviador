@@ -192,6 +192,7 @@ class Region:
     point_value: int = 500  # Current point value
     has_been_captured: bool = False  # Whether captured in battle before
     original_owner: Optional[int] = None  # First owner (for point tracking)
+    is_selectable: bool = False  # For UI highlighting during selection
     
     def __post_init__(self) -> None:
         """Validate region data after initialization."""
@@ -252,6 +253,7 @@ class Region:
             'point_value': self.point_value,
             'has_been_captured': self.has_been_captured,
             'original_owner': self.original_owner,
+            'is_selectable': self.is_selectable
         }
     
     @classmethod
@@ -268,6 +270,7 @@ class Region:
             point_value=data['point_value'],
             has_been_captured=data['has_been_captured'],
             original_owner=data['original_owner'],
+            is_selectable=data['is_selectable']
         )
 
 
