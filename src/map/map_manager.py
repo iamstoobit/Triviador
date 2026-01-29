@@ -291,6 +291,27 @@ class MapManager:
                 # Move disc from disconnected to connected
                 disconnected.remove(disc)
                 connected_set.add(disc)
+
+            else:
+                # Fallback: connect to random connected region
+                # This should only happen if disconnected or connected sets are empty
+                if disconnected and connected_set:
+                    disc = random.choice(list(disconnected))
+                    conn = random.choice(list(connected_set))
+                    
+                    print(f"Warning: Using random fallback to connect region {disc} to {conn}")
+                    
+                    # Add bidirectional connection
+                    regions_data[conn]['adjacent'].append(disc)
+                    regions_data[disc]['adjacent'].append(conn)
+                    
+                    # Move disc from disconnected to connected
+                    disconnected.remove(disc)
+                    connected_set.add(disc)
+                else:
+                    # This should never happen, but break to avoid infinite loop
+                    print(f"Error: Cannot connect regions. disconnected={disconnected}, connected={connected_set}")
+                    break
     
     def _calculate_distance(self, pos1: Tuple[float, float], 
                            pos2: Tuple[float, float]) -> float:
