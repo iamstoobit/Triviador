@@ -47,9 +47,7 @@ triviador/
 │   │
 │   ├── map/
 │   │   ├── __init__.py
-│   │   ├── territory.py (Territory class)
 │   │   ├── map_manager.py
-│   │   └── bonuses.py (territory bonus calculations)
 │   │
 │   └── utils/
 │       ├── __init__.py
