@@ -1,7 +1,3 @@
-"""
-src/trivia/question.py - Question data model
-"""
-
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Any
@@ -41,7 +37,7 @@ class Question:
             except (ValueError, TypeError):
                 raise ValueError(f"Open answer questions must have numeric answers. Got: {self.correct_answer}")
     
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert question to dictionary for serialization."""
         return {
             'id': self.id,
@@ -53,7 +49,7 @@ class Question:
         }
     
     @classmethod
-    def from_dict(cls, data: dict) -> Question:
+    def from_dict(cls, data: dict[str, Any]) -> Question:
         """Create question from dictionary."""
         return cls(
             id=data['id'],
