@@ -105,8 +105,7 @@ class GameLogic:
             # Capitals can only be fortified if they've been captured
             if region_id in self.state.capitals:
                 capital = self.state.capitals[region_id]
-                if capital.owner_id == player_id and capital.current_hp == 1:
-                    # Captured capital with 1 HP can be fortified
+                if capital.owner_id == player_id:
                     return True
                 return False
         
@@ -114,8 +113,7 @@ class GameLogic:
     
     def resolve_battle(self, attacker_id: int, defender_id: int, 
                       region_id: int, question: Question,
-                      attacker_answer: Any, defender_answer: Any,
-                      attacker_time: float, defender_time: float) -> BattleResult:
+                      attacker_answer: Any, defender_answer: Any) -> BattleResult:
         """
         Resolve a battle between attacker and defender.
         
@@ -145,7 +143,7 @@ class GameLogic:
         result.attacker_correct = attacker_correct
         result.defender_correct = defender_correct
         
-        # Apply battle rules (Rule 8 + clarifications)
+        # Apply battle rules
         if not attacker_correct:
             # Attacker wrong → defender wins
             result.winner_id = defender_id
@@ -371,17 +369,12 @@ class GameLogic:
         """
         for capital in self.state.capitals.values():
             capital.increment_turn_counter()
-            
-            # Check if regeneration conditions are met
-            if (capital.turns_since_last_attack >= self.config.capital_hp_regeneration_turns and
-                capital.current_hp < capital.max_hp and
-                not capital.is_destroyed):
-                
-                capital.regenerate()
-                if capital.current_hp > 0:
-                    region = self.state.regions.get(capital.region_id)
-                    if region:
-                        print(f"Capital {region.name} regenerated to {capital.current_hp}/{capital.max_hp} HP")
+            capital.regenerate()
+
+            if capital.current_hp > 0:
+                region = self.state.regions.get(capital.region_id)
+                if region:
+                    print(f"Capital {region.name} regenerated to {capital.current_hp}/{capital.max_hp} HP")
     
     def check_game_over(self) -> Optional[int]:
         """
@@ -603,9 +596,7 @@ if __name__ == "__main__":
         region_id=2,
         question=test_question,
         attacker_answer="Wrong1",
-        defender_answer="Wrong2",
-        attacker_time=1.0,
-        defender_time=2.0
+        defender_answer="Wrong2"
     )
     print(f"\nBattle 1 - Attacker wrong: winner={result1.winner_id}")
     assert result1.winner_id == 1, "Defender should win when attacker is wrong"
@@ -617,9 +608,7 @@ if __name__ == "__main__":
         region_id=2,
         question=test_question,
         attacker_answer="Correct",
-        defender_answer="Wrong1",
-        attacker_time=1.0,
-        defender_time=2.0
+        defender_answer="Wrong1"
     )
     print(f"Battle 2 - Attacker correct, defender wrong: winner={result2.winner_id}")
     assert result2.winner_id == 0, "Attacker should win when correct and defender wrong"
@@ -631,9 +620,7 @@ if __name__ == "__main__":
         region_id=2,
         question=test_question,
         attacker_answer="Correct",
-        defender_answer="Correct",
-        attacker_time=1.0,
-        defender_time=2.0
+        defender_answer="Correct"
     )
     print(f"Battle 3 - Both correct: winner={result3.winner_id}")
     assert result3.winner_id is None, "Should be tie when both correct"
