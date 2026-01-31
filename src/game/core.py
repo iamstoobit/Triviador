@@ -284,7 +284,7 @@ class Game:
         # Collect all answers
         all_answers: List[Tuple[int, Any, float]] = []  # (player_id, answer, time)
         
-        for player_id, player in self.state.players.items():
+        for player_id, _ in self.state.players.items():
             if player_id in self.battle_answers:
                 answer = self.battle_answers[player_id]
                 answer_time = self.battle_answer_times.get(player_id, float('inf'))
@@ -294,7 +294,7 @@ class Game:
         correct_answer = float(self.battle_question.correct_answer)
         
         def closeness_key(item: Tuple[int, Any, float]) -> Tuple[float, float]:
-            player_id, answer, answer_time = item
+            _, answer, answer_time = item
             try:
                 diff = abs(float(answer) - correct_answer)
             except (ValueError, TypeError):
