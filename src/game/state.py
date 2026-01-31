@@ -353,7 +353,7 @@ class GameState:
         """Ensure capitals dict is consistent with regions."""
         # Remove capitals for regions that don't exist or aren't capitals
         region_ids_to_remove: List[int] = []
-        for region_id, capital in self.capitals.items():
+        for region_id, _ in self.capitals.items():
             if (region_id not in self.regions or 
                 self.regions[region_id].region_type != RegionType.CAPITAL):
                 region_ids_to_remove.append(region_id)
