@@ -506,21 +506,36 @@ class GameScreen:
     def _handle_region_click(self, region_id: int, game_state: GameState) -> bool:
         """
         Handle region click.
-        
+    
         Args:
             region_id: ID of clicked region
             game_state: Current game state
-            
+        
         Returns:
             True if handled
         """
-        # For now, just select the region
-        game_state.selected_region_id = region_id
-        self.selected_region_id = region_id
-        self.show_action_buttons = True
-        
-        print(f"Region {region_id} selected")
-        return True
+        region = game_state.regions.get(region_id)
+        if not region:
+            return False
+    
+        # Handle based on game phase
+        if game_state.current_phase == GamePhase.OCCUPYING:
+            # In occupation phase, only allow clicking on selectable regions
+            if region.is_selectable and region.owner_id is None:
+                # This should trigger occupation in the game logic
+                game_state.selected_region_id = region_id
+                self.selected_region_id = region_id
+                print(f"Region {region_id} selected for occupation")
+                return True
+        elif game_state.current_phase == GamePhase.TURN:
+            # For turn phase, select the region
+            game_state.selected_region_id = region_id
+            self.selected_region_id = region_id
+            self.show_action_buttons = True
+            print(f"Region {region_id} selected")
+            return True
+    
+        return False
     
     def get_region_at_position(self, pos: Tuple[int, int]) -> Optional[int]:
         """

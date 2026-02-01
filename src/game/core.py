@@ -55,7 +55,7 @@ class Game:
 
         # Human answer
         self.waiting_for_human_answer = False
-        self.human_answer_value: Optional[float] = None
+        self.human_answer_value: Optional[int] = None
         self.current_question_screen: Optional[str] = None  # "occupation" or "battle"
 
         # Region selection state
@@ -358,7 +358,7 @@ class Game:
         # Switch phase
         self.start_game_turns()
 
-    def get_human_answer_for_occupation(self) -> Optional[float]:
+    def get_human_answer_for_occupation(self) -> Optional[int]:
         """
         Get human answer for occupation question through UI.
         
@@ -368,6 +368,7 @@ class Game:
         print("Waiting for human answer...")
 
         # Set up question screen state
+        self.human_answer_value = None
         self.waiting_for_human_answer = True
         self.current_question_screen = "occupation"
         
@@ -564,8 +565,7 @@ class Game:
             # Draw message if any
             if self.message_text:
                 self.screen_manager.draw_message(
-                    self.message_text,
-                    (self.config.screen_width // 2, 50)
+                    self.message_text
                 )
         
         pygame.display.flip()
@@ -575,6 +575,11 @@ class Game:
         if not self.battle_question:
             return
         
+        # Create a semi-transparent overlay
+        overlay = pygame.Surface((self.config.screen_width, self.config.screen_height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 128))  # Semi-transparent black
+        self.screen.blit(overlay, (0, 0))
+
         # Draw question background
         question_bg = pygame.Rect(
             self.config.screen_width // 2 - 300,
@@ -594,10 +599,23 @@ class Game:
             text_rect = text_surf.get_rect(center=(question_bg.centerx, y_pos))
             self.screen.blit(text_surf, text_rect)
             y_pos += 30
+
+        # Draw answer box
+        answer_box = pygame.Rect(
+            question_bg.centerx - 150,
+            y_pos + 30,
+            300, 60
+        )
+        pygame.draw.rect(self.screen, (255, 255, 255), answer_box, border_radius=5)
+        pygame.draw.rect(self.screen, self.config.colors.text_primary, answer_box, 2, border_radius=5)
         
         # Draw current answer
         answer_font = pygame.font.SysFont(self.config.font_name, self.config.font_sizes["heading"])
-        answer_text = str(self.human_answer_value) if self.human_answer_value is not None else ""
+        if self.human_answer_value is not None:
+            answer_text = str(int(self.human_answer_value))  # Force integer display
+        else:
+            answer_text = "0"
+    
         answer_surf = answer_font.render(answer_text, True, self.config.colors.text_accent)
         answer_rect = answer_surf.get_rect(center=(question_bg.centerx, y_pos + 50))
         self.screen.blit(answer_surf, answer_rect)
@@ -668,40 +686,38 @@ class Game:
                     if pygame.K_0 <= event.key <= pygame.K_9:
                         # Append digit to answer
                         digit = event.key - pygame.K_0
-                        current = str(self.human_answer_value) if self.human_answer_value is not None else ""
-                        new_value = current + str(digit)
-                        try:
-                            self.human_answer_value = float(new_value)
-                        except ValueError:
-                            pass
+                        if self.human_answer_value is None:
+                            self.human_answer_value = digit
+                        else:
+                            current = str(int(self.human_answer_value))
+                            new_value = current + str(digit)
+                            self.human_answer_value = int(new_value)
                     
                     elif event.key == pygame.K_BACKSPACE:
                         # Remove last digit
                         if self.human_answer_value is not None:
-                            str_val = str(int(self.human_answer_value))
+                            str_val = str(self.human_answer_value)
                             if len(str_val) > 1:
-                                self.human_answer_value = float(str_val[:-1])
+                                self.human_answer_value = int(str_val[:-1])
                             else:
-                                self.human_answer_value = 0.0
+                                self.human_answer_value = 0
                     
                     elif event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
                         # Submit answer
                         if self.human_answer_value is not None:
+                            print(f"Answer submitted: {self.human_answer_value}")
                             self.waiting_for_human_answer = False
-                    
-                    elif event.key == pygame.K_PERIOD or event.key == pygame.K_KP_PERIOD:
-                        # Add decimal point
-                        if self.human_answer_value is not None:
-                            str_val = str(self.human_answer_value)
-                            if '.' not in str_val:
-                                self.human_answer_value = float(str_val + ".")
+                        else:
+                            # If no answer, default to 0
+                            self.human_answer_value = 0
+                            self.waiting_for_human_answer = False
                     
                     elif event.key == pygame.K_MINUS or event.key == pygame.K_KP_MINUS:
                         # Toggle negative sign
                         if self.human_answer_value is not None:
                             self.human_answer_value = -self.human_answer_value
                         else:
-                            self.human_answer_value = 0.0
+                            self.human_answer_value = 0
                 
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:  # Left click

@@ -143,7 +143,7 @@ class ScreenManager:
         self.message_timer = time.time()
         self.message_duration = duration
     
-    def _draw_message(self, message: str) -> None:
+    def draw_message(self, message: str) -> None:
         """Draw a message on screen."""
         font = self.fonts["body"]
         
