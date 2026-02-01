@@ -27,7 +27,7 @@ triviador/
 │   │
 │   ├── ai/
 │   │   ├── __init__.py
-│   │   ├── basic_ai.py (random decision making)
+│   │   ├── basic_ai.py (random decision making, so far just a placeholder)
 │   │   ├── strategic_ai.py (territory selection logic)
 │   │   └── difficulty.py (AI difficulty levels)
 │   │
