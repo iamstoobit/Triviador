@@ -12,11 +12,7 @@ class MapConfig:
     """Configuration for map generation."""
     
     region_count: int = 24
-    min_region_distance: int = 40
-    max_region_distance: int = 150
     border_margin: int = 50
-    max_adjacent_regions: int = 6
-    min_adjacent_regions: int = 2
     region_names: List[str] = field(default_factory=lambda: [
         "Arctic", "Tundra", "Taiga", "Forest", "Plains", "Desert", 
         "Savanna", "Jungle", "Mountains", "Hills", "Swamp", "Coast",
@@ -47,7 +43,7 @@ class MapManager:
                         screen_width: int = 1280,
                         screen_height: int = 720) -> List[Dict[str, Any]]:
         """
-        Generate random regions for the game.
+        Generate grid-based regions for the game.
         
         Args:
             region_count: Number of regions to generate (uses config if None)
@@ -62,16 +58,19 @@ class MapManager:
         
         print(f"Generating {count} regions...")
         
-        # Step 1: Generate random positions
-        positions = self._generate_positions(count, screen_width, screen_height)
+        # Step 1: Generate grid dimensions
+        grid_width, grid_height = self._calculate_grid_dimensions(count)
         
-        # Step 2: Generate region names
+        # Step 2: Generate positions on grid
+        positions = self._generate_grid_positions(count, grid_width, grid_height, screen_height, screen_height)
+
+        # Step 3: Generate region names
         names = self._generate_names(count)
         
-        # Step 3: Determine adjacency based on proximity
-        adjacency_lists = self._calculate_adjacency(positions)
+        # Step 4: Determine adjacency based on grid neighbours
+        adjacency_lists = self._calculate_grid_adjacency(count, grid_width, grid_height)
         
-        # Step 4: Create region data dictionaries
+        # Step 5: Create region data dictionaries
         regions_data: List[Dict[str, Any]] = []
         for i in range(count):
             region_data: Dict[str, Any] = {
@@ -82,20 +81,53 @@ class MapManager:
             }
             regions_data.append(region_data)
         
-        # Step 5: Ensure all regions are connected
+        # Step 6: Ensure all regions are connected
         self._ensure_connectivity(regions_data)
         
-        print(f"Generated {len(regions_data)} regions with adjacency")
+        print(f"Generated {len(regions_data)} regions in {grid_width}x{grid_height} grid")
         return regions_data
     
-    def _generate_positions(self, count: int, 
-                           screen_width: int, 
-                           screen_height: int) -> List[Tuple[float, float]]:
+    def _calculate_grid_dimensions(self, count: int) -> Tuple[int, int]:
         """
-        Generate random non-overlapping positions for regions.
+        Calculate optimal grid dimensions for given region count.
+        Tries to make grid as square as possible.
         
         Args:
-            count: Number of positions to generate
+            count: Number of regions
+            screen_width: Available width
+            screen_height: Available height
+            
+        Returns:
+            (grid_width, grid_height) - dimensions in number of cells
+        """
+        # Start with a square-ish grid
+        base = int(math.sqrt(count))
+        
+        # Try different aspect ratios
+        best_ratio = float('inf')
+        best_dimensions = (base, base)
+        
+        for width in range(max(3, base - 2), min(base + 3, count)):
+            height = (count + width - 1) // width  # Ceiling division
+            if width * height >= count:
+                # Calculate aspect ratio
+                ratio = max(width, height) / min(width, height)
+                if ratio < best_ratio:
+                    best_ratio = ratio
+                    best_dimensions = (width, height)
+        
+        return best_dimensions
+
+    def _generate_grid_positions(self, count: int, grid_width: int, 
+                                grid_height: int, screen_width: int, 
+                                screen_height: int) -> List[Tuple[float, float]]:
+        """
+        Generate positions for regions in a grid layout.
+        
+        Args:
+            count: Number of regions
+            grid_width: Grid width in cells
+            grid_height: Grid height in cells
             screen_width: Available width
             screen_height: Available height
             
@@ -104,38 +136,44 @@ class MapManager:
         """
         positions: List[Tuple[float, float]] = []
         margin = self.config.border_margin
-        attempts = 0
-        max_attempts = count * 100  # Prevent infinite loop
         
-        while len(positions) < count and attempts < max_attempts:
-            attempts += 1
-            
-            # Generate random position within margins
-            x = random.uniform(margin, screen_width - margin)
-            y = random.uniform(margin, screen_height - margin)
-            new_pos = (x, y)
-            
-            # Check if too close to existing positions
-            too_close = False
-            for existing_pos in positions:
-                distance = self._calculate_distance(new_pos, existing_pos)
-                if distance < self.config.min_region_distance:
-                    too_close = True
-                    break
-            
-            if not too_close:
-                positions.append(new_pos)
+        # Calculate cell size
+        available_width = screen_width - 2 * margin
+        available_height = screen_height - 2 * margin
         
-        # If we couldn't generate enough positions, relax constraints
-        if len(positions) < count:
-            print(f"Warning: Could only generate {len(positions)} positions with constraints")
-            while len(positions) < count:
-                x = random.uniform(margin, screen_width - margin)
-                y = random.uniform(margin, screen_height - margin)
-                positions.append((x, y))
+        cell_width = available_width / grid_width
+        cell_height = available_height / grid_height
+        
+        # Calculate region radius (for non-overlapping)
+        region_radius = min(cell_width, cell_height) * 0.35
+        
+        # Shuffle indices to distribute regions randomly in grid
+        grid_cells = [(x, y) for x in range(grid_width) for y in range(grid_height)]
+        random.shuffle(grid_cells)
+        
+        # Assign first 'count' cells to regions
+        for i in range(count):
+            grid_x, grid_y = grid_cells[i]
+            
+            # Center the region in its grid cell with small random offset
+            center_x = margin + (grid_x + 0.5) * cell_width
+            center_y = margin + (grid_y + 0.5) * cell_height
+            
+            # Add small random offset for natural look (but keep within cell)
+            offset_x = random.uniform(-cell_width * 0.2, cell_width * 0.2)
+            offset_y = random.uniform(-cell_height * 0.2, cell_height * 0.2)
+            
+            x = center_x + offset_x
+            y = center_y + offset_y
+            
+            # Ensure position stays within cell bounds
+            x = max(margin + region_radius, min(screen_width - margin - region_radius, x))
+            y = max(margin + region_radius, min(screen_height - margin - region_radius, y))
+            
+            positions.append((x, y))
         
         return positions
-    
+
     def _generate_names(self, count: int) -> List[str]:
         """
         Generate unique names for regions.
@@ -175,55 +213,83 @@ class MapManager:
                 unique_names.append(name)
         
         return unique_names
-    
-    def _calculate_adjacency(self, positions: List[Tuple[float, float]]) -> List[List[int]]:
+
+    def _calculate_grid_adjacency(self, count: int, 
+                                 grid_width: int, 
+                                 grid_height: int) -> List[List[int]]:
         """
-        Calculate adjacency between regions based on proximity.
+        Calculate adjacency based on grid positions.
+        Regions are adjacent if they are in neighboring grid cells.
         
         Args:
-            positions: List of region positions
+            count: Number of regions
+            grid_width: Grid width in cells
+            grid_height: Grid height in cells
             
         Returns:
             List of adjacency lists for each region
         """
-        count = len(positions)
+        # Map from grid position to region index
+        grid_to_region: Dict[Tuple[int, int], int] = {}
+        region_to_grid: Dict[int, Tuple[int, int]] = {}
+        
+        # First, create a list of all grid cells
+        grid_cells = [(x, y) for x in range(grid_width) for y in range(grid_height)]
+        random.shuffle(grid_cells)
+        
+        # Assign first 'count' cells to regions
+        for i in range(count):
+            grid_x, grid_y = grid_cells[i]
+            grid_to_region[(grid_x, grid_y)] = i
+            region_to_grid[i] = (grid_x, grid_y)
+        
+        # Initialize adjacency lists
         adjacency: List[List[int]] = [[] for _ in range(count)]
         
-        # Calculate distances between all pairs
-        distances: List[List[Tuple[int, float]]] = [[] for _ in range(count)]
+        # For each region, check its grid neighbors
+        for region_id in range(count):
+            grid_x, grid_y = region_to_grid[region_id]
+            
+            # Check all 4 cardinal directions
+            neighbors = [
+                (max(grid_x - 1, 0), grid_y),  # Left
+                (min(grid_x + 1, grid_width - 1), grid_y),  # Right
+                (grid_x, max(grid_y - 1, 0)),  # Up
+                (grid_x, min(grid_y + 1, grid_height -1)),  # Down
+            ]
+            
+            for neighbor_x, neighbor_y in neighbors:
+                if (neighbor_x, neighbor_y) in grid_to_region:
+                    neighbor_id = grid_to_region[(neighbor_x, neighbor_y)]
+                    # Add bidirectional connection
+                    if neighbor_id not in adjacency[region_id]:
+                        adjacency[region_id].append(neighbor_id)
+                    if region_id not in adjacency[neighbor_id]:
+                        adjacency[neighbor_id].append(region_id)
         
-        for i in range(count):
-            for j in range(i + 1, count):
-                dist = self._calculate_distance(positions[i], positions[j])
-                distances[i].append((j, dist))
-                distances[j].append((i, dist))
-        
-        # For each region, connect to nearest neighbors
-        for i in range(count):
-            # Sort neighbors by distance
-            distances[i].sort(key=lambda x: x[1])
+        # Add some random diagonal connections for more interesting maps
+        for region_id in range(count):
+            grid_x, grid_y = region_to_grid[region_id]
             
-            # Connect to closest neighbors, but not too many
-            max_neighbors = min(self.config.max_adjacent_regions, len(distances[i]))
-            min_neighbors = min(self.config.min_adjacent_regions, max_neighbors)
+            # Check diagonal neighbors
+            diagonals = [
+                (grid_x - 1, grid_y - 1),  # Top-left
+                (grid_x + 1, grid_y - 1),  # Top-right
+                (grid_x - 1, grid_y + 1),  # Bottom-left
+                (grid_x + 1, grid_y + 1),  # Bottom-right
+            ]
             
-            # Determine how many neighbors this region should have
-            # More neighbors for central regions, fewer for edge regions
-            neighbor_count = random.randint(min_neighbors, max_neighbors)
-            
-            # Add the closest neighbors
-            for j in range(min(neighbor_count, len(distances[i]))):
-                neighbor_id, dist = distances[i][j]
-                
-                # Check if distance is reasonable
-                if dist <= self.config.max_region_distance:
-                    adjacency[i].append(neighbor_id)
-                    # Ensure bidirectional connection
-                    if i not in adjacency[neighbor_id]:
-                        adjacency[neighbor_id].append(i)
+            for diag_x, diag_y in diagonals:
+                if random.random() < 0.3:  # 30% chance for diagonal connection
+                    if (diag_x, diag_y) in grid_to_region:
+                        neighbor_id = grid_to_region[(diag_x, diag_y)]
+                        if neighbor_id not in adjacency[region_id]:
+                            adjacency[region_id].append(neighbor_id)
+                        if region_id not in adjacency[neighbor_id]:
+                            adjacency[neighbor_id].append(region_id)
         
         return adjacency
-    
+
     def _ensure_connectivity(self, regions_data: List[Dict[str, Any]]) -> None:
         """
         Ensure all regions are connected (no isolated islands).
@@ -254,7 +320,7 @@ class MapManager:
         if len(visited) < len(regions_data):
             print(f"Warning: Map not fully connected. Connecting {len(visited)}/{len(regions_data)} regions.")
             self._connect_isolated_regions(regions_data, visited)
-    
+
     def _connect_isolated_regions(self, regions_data: List[Dict[str, Any]], 
                                  connected_set: Set[int]) -> None:
         """
@@ -292,27 +358,6 @@ class MapManager:
                 disconnected.remove(disc)
                 connected_set.add(disc)
 
-            else:
-                # Fallback: connect to random connected region
-                # This should only happen if disconnected or connected sets are empty
-                if disconnected and connected_set:
-                    disc = random.choice(list(disconnected))
-                    conn = random.choice(list(connected_set))
-                    
-                    print(f"Warning: Using random fallback to connect region {disc} to {conn}")
-                    
-                    # Add bidirectional connection
-                    regions_data[conn]['adjacent'].append(disc)
-                    regions_data[disc]['adjacent'].append(conn)
-                    
-                    # Move disc from disconnected to connected
-                    disconnected.remove(disc)
-                    connected_set.add(disc)
-                else:
-                    # This should never happen, but break to avoid infinite loop
-                    print(f"Error: Cannot connect regions. disconnected={disconnected}, connected={connected_set}")
-                    break
-    
     def _calculate_distance(self, pos1: Tuple[float, float], 
                            pos2: Tuple[float, float]) -> float:
         """
@@ -366,7 +411,7 @@ class MapManager:
                     queue.append((neighbor_id, new_path))
         
         return None
-    
+
     def get_region_at_position(self, position: Tuple[float, float],
                               regions: Dict[int, Region],
                               radius: float = 30.0) -> Optional[int]:
@@ -387,54 +432,46 @@ class MapManager:
                 return region_id
         return None
 
-
 if __name__ == "__main__":
-    print("=== Testing MapManager ===")
+    print("=== Testing MapManager Grid Layout ===")
     
     # Create map manager
-    config = MapConfig(region_count=20)
+    config = MapConfig(region_count=24)
     manager = MapManager(config)
     
     # Generate regions
     regions_data = manager.generate_regions(
-        region_count=20,
+        region_count=24,
         screen_width=1280,
         screen_height=720
     )
     
     print(f"\nGenerated {len(regions_data)} regions:")
-    for i, data in enumerate(regions_data[:5]):  # Show first 5
-        print(f"Region {data['id']}: {data['name']}")
-        print(f"  Position: {data['position']}")
-        print(f"  Adjacent to: {data['adjacent']}")
     
-    # Test adjacency connectivity
+    # Check for overlaps
+    positions = [data['position'] for data in regions_data]
+    min_distance = float('inf')
+    
+    for i in range(len(positions)):
+        for j in range(i + 1, len(positions)):
+            dist = manager._calculate_distance(positions[i], positions[j])
+            min_distance = min(min_distance, dist)
+    
+    print(f"Minimum distance between regions: {min_distance:.1f} pixels")
+    
+    # Check if all regions are on screen
+    all_on_screen = True
+    for i, pos in enumerate(positions):
+        if pos[0] < 0 or pos[0] > 1280 or pos[1] < 0 or pos[1] > 720:
+            print(f"Region {i+1} at position {pos} is off-screen!")
+            all_on_screen = False
+    
+    if all_on_screen:
+        print("All regions are on screen ✓")
+    
+    # Show adjacency statistics
     total_connections = sum(len(data['adjacent']) for data in regions_data)
     avg_connections = total_connections / len(regions_data)
-    print(f"\nAverage connections per region: {avg_connections:.1f}")
+    print(f"Average connections per region: {avg_connections:.1f}")
     
-    # Create Region objects for bonus calculation test
-    regions_dict: Dict[Any, Any] = {}
-    for data in regions_data:
-        region = Region(
-            region_id=data['id'],
-            name=data['name'],
-            position=data['position'],
-            adjacent_regions=data['adjacent']
-        )
-        regions_dict[data['id']] = region
-    
-    # Test path finding
-    if len(regions_data) >= 2:
-        start_id = regions_data[0]['id']
-        end_id = regions_data[-1]['id']
-        path = manager.find_path(start_id, end_id, regions_dict)
-        
-        if path:
-            print(f"\nPath from region {start_id} to {end_id}:")
-            print(f"  Length: {len(path)} regions")
-            print(f"  Path: {path}")
-        else:
-            print(f"\nNo path found from region {start_id} to {end_id}")
-    
-    print("\nAll tests passed!")
+    print("\nGrid layout test complete!")
