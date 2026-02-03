@@ -460,6 +460,7 @@ class GameState:
             else:
                 non_adjacent_regions.append(region)
         
+
         # Return adjacent first, then non-adjacent
         return adjacent_regions, non_adjacent_regions
     

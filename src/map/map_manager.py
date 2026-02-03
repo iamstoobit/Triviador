@@ -59,7 +59,7 @@ class MapManager:
         print(f"Generating {count} regions...")
         
         # Step 1: Generate grid dimensions
-        grid_width, grid_height = self._calculate_grid_dimensions(count)
+        grid_width, grid_height = self._calculate_grid_dimensions(count, screen_width, screen_height)
         
         # Step 2: Generate positions on grid
         positions = self._generate_grid_positions(count, grid_width, grid_height, screen_width, screen_height)
@@ -90,34 +90,43 @@ class MapManager:
         print(f"Generated {len(regions_data)} regions in {grid_width}x{grid_height} grid")
         return regions_data
     
-    def _calculate_grid_dimensions(self, count: int) -> Tuple[int, int]:
+    def _calculate_grid_dimensions(self, count: int, 
+                                screen_width: int = 1280,
+                                screen_height: int = 720) -> Tuple[int, int]:
         """
         Calculate optimal grid dimensions for given region count.
-        Tries to make grid as square as possible.
+        Prioritizes grids with no empty cells that match screen aspect ratio.
         
         Args:
             count: Number of regions
-            screen_width: Available width
-            screen_height: Available height
+            screen_width: Screen width (for aspect ratio)
+            screen_height: Screen height (for aspect ratio)
             
         Returns:
             (grid_width, grid_height) - dimensions in number of cells
         """
-        # Start with a square-ish grid
-        base = int(math.sqrt(count))
+        target_aspect = screen_width / screen_height
+        best_score = float('inf')
+        best_dimensions = (1, count)
         
-        # Try different aspect ratios
-        best_ratio = float('inf')
-        best_dimensions = (base, base)
-        
-        for width in range(max(3, base - 2), min(base + 3, count)):
+        # Try all possible grid dimensions
+        for width in range(1, count + 1):
             height = (count + width - 1) // width  # Ceiling division
-            if width * height >= count:
-                # Calculate aspect ratio
-                ratio = max(width, height) / min(width, height)
-                if ratio < best_ratio:
-                    best_ratio = ratio
-                    best_dimensions = (width, height)
+            
+            # Calculate how well this grid fits
+            aspect_ratio = width / height
+            aspect_diff = abs(aspect_ratio - target_aspect)
+            
+            # Penalize empty cells: (width * height - count)
+            empty_cells = width * height - count
+            
+            # Combined score (lower is better)
+            # Weight aspect ratio difference more heavily
+            score = aspect_diff * 10 + empty_cells
+            
+            if score < best_score:
+                best_score = score
+                best_dimensions = (width, height)
         
         return best_dimensions
 
@@ -144,8 +153,8 @@ class MapManager:
         available_width = screen_width - 2 * margin
         available_height = screen_height - 2 * margin
         
-        cell_width = available_width / grid_width
-        cell_height = available_height / grid_height
+        cell_width = (available_width / grid_width) * 0.85
+        cell_height = (available_height / grid_height) * 0.85
         
         # Calculate region radius (for non-overlapping)
         region_radius = min(cell_width, cell_height) * 0.25
