@@ -122,38 +122,48 @@ class MapScreen:
     def _draw_map_connections(self, game_state: GameState,
                              offset_x: float, offset_y: float, scale: float) -> None:
         """Draw connections between regions on map."""
+        # Track which connections we've already drawn to avoid duplicates
+        drawn_connections: set[tuple[int, ...]] = set()
+        
         for region_id, region in game_state.regions.items():
             # Calculate screen position
             screen_x1 = offset_x + region.position[0] * scale
             screen_y1 = offset_y + region.position[1] * scale
             
             for adj_id in region.adjacent_regions:
-                if adj_id in game_state.regions and adj_id > region_id:
-                    adj_region = game_state.regions[adj_id]
+                if adj_id in game_state.regions:
+                    # Create a unique identifier for this connection
+                    connection_key = tuple(sorted((region_id, adj_id)))
                     
-                    # Calculate adjacent region screen position
-                    screen_x2 = offset_x + adj_region.position[0] * scale
-                    screen_y2 = offset_y + adj_region.position[1] * scale
-                    
-                    # Determine connection color
-                    if (region.owner_id == adj_region.owner_id and 
-                        region.owner_id is not None):
-                        # Same owner
-                        owner_color = self.config.get_player_color(region.owner_id)
-                        color = (owner_color[0], owner_color[1], owner_color[2], 150)
-                    else:
-                        # Different owners or neutral
-                        color = self.colors.territory_border
-                    
-                    # Draw connection line
-                    pygame.draw.line(self.screen, color,
-                                   (int(screen_x1), int(screen_y1)),
-                                   (int(screen_x2), int(screen_y2)), 2)
+                    # Only draw if we haven't drawn this connection yet
+                    if connection_key not in drawn_connections:
+                        drawn_connections.add(connection_key)
+                        
+                        adj_region = game_state.regions[adj_id]
+                        
+                        # Calculate adjacent region screen position
+                        screen_x2 = offset_x + adj_region.position[0] * scale
+                        screen_y2 = offset_y + adj_region.position[1] * scale
+                        
+                        # Determine connection color
+                        if (region.owner_id == adj_region.owner_id and 
+                            region.owner_id is not None):
+                            # Same owner
+                            owner_color = self.config.get_player_color(region.owner_id)
+                            color = (owner_color[0], owner_color[1], owner_color[2], 150)
+                        else:
+                            # Different owners or neutral
+                            color = self.colors.territory_border
+                        
+                        # Draw connection line
+                        pygame.draw.line(self.screen, color,
+                                    (int(screen_x1), int(screen_y1)),
+                                    (int(screen_x2), int(screen_y2)), 2)
     
     def _draw_map_regions(self, game_state: GameState,
                          offset_x: float, offset_y: float, scale: float) -> None:
         """Draw regions on map."""
-        region_radius = max(10, int(15 * min(self.zoom_level, 1.5)))
+        region_radius = max(8, int(12 * min(self.zoom_level, 1.5)))
         
         for region_id, region in game_state.regions.items():
             # Calculate screen position

@@ -62,14 +62,14 @@ class MapManager:
         grid_width, grid_height = self._calculate_grid_dimensions(count)
         
         # Step 2: Generate positions on grid
-        positions = self._generate_grid_positions(count, grid_width, grid_height, screen_height, screen_height)
+        positions = self._generate_grid_positions(count, grid_width, grid_height, screen_width, screen_height)
 
         # Step 3: Generate region names
         names = self._generate_names(count)
         
         # Step 4: Determine adjacency based on grid neighbours
         adjacency_lists = self._calculate_grid_adjacency(count, grid_width, grid_height)
-        
+
         # Step 5: Create region data dictionaries
         regions_data: List[Dict[str, Any]] = []
         for i in range(count):
@@ -83,6 +83,9 @@ class MapManager:
         
         # Step 6: Ensure all regions are connected
         self._ensure_connectivity(regions_data)
+
+        for region_data in regions_data:
+            region_data['adjacent'] = [adj_idx + 1 for adj_idx in region_data['adjacent']]
         
         print(f"Generated {len(regions_data)} regions in {grid_width}x{grid_height} grid")
         return regions_data
@@ -145,11 +148,10 @@ class MapManager:
         cell_height = available_height / grid_height
         
         # Calculate region radius (for non-overlapping)
-        region_radius = min(cell_width, cell_height) * 0.35
+        region_radius = min(cell_width, cell_height) * 0.25
         
         # Shuffle indices to distribute regions randomly in grid
         grid_cells = [(x, y) for x in range(grid_width) for y in range(grid_height)]
-        random.shuffle(grid_cells)
         
         # Assign first 'count' cells to regions
         for i in range(count):
@@ -160,8 +162,8 @@ class MapManager:
             center_y = margin + (grid_y + 0.5) * cell_height
             
             # Add small random offset for natural look (but keep within cell)
-            offset_x = random.uniform(-cell_width * 0.2, cell_width * 0.2)
-            offset_y = random.uniform(-cell_height * 0.2, cell_height * 0.2)
+            offset_x = random.uniform(-cell_width * 0.05, cell_width * 0.05)
+            offset_y = random.uniform(-cell_height * 0.05, cell_height * 0.05)
             
             x = center_x + offset_x
             y = center_y + offset_y
@@ -235,7 +237,6 @@ class MapManager:
         
         # First, create a list of all grid cells
         grid_cells = [(x, y) for x in range(grid_width) for y in range(grid_height)]
-        random.shuffle(grid_cells)
         
         # Assign first 'count' cells to regions
         for i in range(count):
@@ -251,14 +252,14 @@ class MapManager:
             grid_x, grid_y = region_to_grid[region_id]
             
             # Check all 4 cardinal directions
-            neighbors = [
-                (max(grid_x - 1, 0), grid_y),  # Left
-                (min(grid_x + 1, grid_width - 1), grid_y),  # Right
-                (grid_x, max(grid_y - 1, 0)),  # Up
-                (grid_x, min(grid_y + 1, grid_height -1)),  # Down
+            orthogonal_neighbors = [
+                (grid_x - 1, grid_y),  # Left
+                (grid_x + 1, grid_y),  # Right
+                (grid_x, grid_y - 1),  # Up
+                (grid_x, grid_y + 1),  # Down
             ]
             
-            for neighbor_x, neighbor_y in neighbors:
+            for neighbor_x, neighbor_y in orthogonal_neighbors:
                 if (neighbor_x, neighbor_y) in grid_to_region:
                     neighbor_id = grid_to_region[(neighbor_x, neighbor_y)]
                     # Add bidirectional connection
