@@ -113,7 +113,7 @@ class ScreenManager:
         elif self.current_screen == ScreenType.GAME:
             self.game_screen.update(game_state)
         elif self.current_screen == ScreenType.QUESTION:
-            self.question_screen.update(game_state)
+            self.question_screen.update()
         elif self.current_screen == ScreenType.MAP:
             self.map_screen.update(game_state)
     

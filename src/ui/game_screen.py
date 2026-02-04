@@ -527,13 +527,7 @@ class GameScreen:
                 self.selected_region_id = region_id
                 print(f"Region {region_id} selected for occupation")
                 return True
-        elif game_state.current_phase == GamePhase.TURN:
-            # For turn phase, select the region
-            game_state.selected_region_id = region_id
-            self.selected_region_id = region_id
-            self.show_action_buttons = True
-            print(f"Region {region_id} selected")
-            return True
+        # Note: TURN phase region selection is handled by core Game class, not here
     
         return False
     

@@ -8,10 +8,10 @@ from enum import Enum, auto
 from src.utils.config import GameConfig
 from src.game.state import (
     GameState, GamePhase, Player, PlayerType, Region, RegionType, 
-    Capital, generate_player_name
+    Capital, BattleResult, generate_player_name, FortificationLevel
 )
 from src.game.logic import GameLogic
-from src.ui.screen_manager import ScreenManager
+from src.ui.screen_manager import ScreenManager, ScreenType
 from src.trivia.database import TriviaDatabase
 from src.trivia.question import Question, QuestionType
 from src.map.map_manager import MapManager
@@ -77,6 +77,12 @@ class Game:
         # Map manager
         self.map_manager = MapManager()
         
+        # Turn phase
+        self.turn_order: List[int] = []
+        self.current_player_index: int = 0
+        self.selected_action: Optional[str] = None  # "fortify" or "attack"
+        self.available_actions: Dict[str, List[int]] = {"attack": [], "fortify": []}
+
         # Current turn state
         self.current_action: TurnAction = TurnAction.NONE
         self.last_click_time: float = 0
@@ -356,7 +362,7 @@ class Game:
                                         if self.state.regions[rid].owner_id is None]
         
         # Switch phase
-        self.start_game_turns()
+        self.turn_phase()
 
     def get_human_answer_for_occupation(self) -> Optional[int]:
         """
@@ -728,16 +734,23 @@ class Game:
 
     def handle_mouse_click(self, pos: Tuple[int, int]) -> None:
         """Handle mouse click at given position."""
+        # If question screen is active, let it handle the click first
+        if self.screen_manager and self.screen_manager.current_screen == ScreenType.QUESTION:
+            if self.screen_manager.question_screen.handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, {'pos': pos, 'button': 1})):
+                # Question screen handled the event
+                if self.screen_manager.question_screen.selected_answer is not None:
+                    self.human_answer_value = self.screen_manager.question_screen.selected_answer
+                    self.waiting_for_human_answer = False
+                return
+        
         # Check if waiting for region selection
         if self.waiting_for_region_selection:
             region_id = self.get_region_at_position(pos)
             if region_id is not None and region_id in self.selectable_region_ids:
-                self.selected_region_id = region_id
-                self.waiting_for_region_selection = False
-                print(f"Region {region_id} selected")
+                self.handle_turn_region_click(region_id)
             return
         
-        # Check if in turn phase and human's turn (for later)
+        # Check if in turn phase and human's turn
         if (self.state.current_phase == GamePhase.TURN and 
             self.state.current_player_id == 0):
             region_id = self.get_region_at_position(pos)
@@ -754,37 +767,638 @@ class Game:
             if distance < 30:  # Click radius - adjust based on your region size
                 return region.region_id
         return None
-    
-    def handle_turn_region_click(self, region_id: int) -> None:
-        """Handle region click during turn phase (for later implementation)."""
-        print(f"Region {region_id} clicked during turn phase")
-        # This will be implemented when we add the turn phase logic
-        # For now, just log it
 
-    def start_game_turns(self) -> None:
-        """Start the main turn phase after occupation is complete."""
-        print("Starting turn phase")
+    def turn_phase(self) -> None:
+        """
+        Main turn phase logic where players take turns.
         
-        # Set game phase
-        self.state.current_phase = GamePhase.TURN
+        Flow:
+        1. Get turn order based on occupation ranking
+        2. While current_turn < total_turns:
+           - Get current player
+           - Get available actions (attack/fortify regions)
+           - If human: highlight available regions, wait for selection
+           - If AI: use StrategicAI to determine action
+           - Execute action and draw changes
+           - Recalculate remaining turns
+        3. End turn phase when complete
+        """
+        print("\n=== STARTING TURN PHASE ===")
         
-        # Determine turn order based on score (lowest first)
-        turn_order = self.state.get_player_turn_order()
+        # 1. Get turn order
+        self.turn_order = self.state.get_player_turn_order()
+        print(f"Turn order: {[self.state.players[pid].name for pid in self.turn_order]}")
         
-        if not turn_order:
-            print("Error: No alive players!")
+        # 2. Calculate total turns available
+        alive_players = len([p for p in self.state.players.values() if p.is_alive])
+        total_turns = alive_players * self.state.max_turns_per_player
+        current_turn = 0  # Current turn counter
+        
+        print(f"Total turns available: {total_turns} ({alive_players} players × {self.state.max_turns_per_player} turns)")
+        
+        # Main turn loop
+        while current_turn < total_turns:
+            # Determine current player by round-robin
+            player_index = current_turn % len(self.turn_order)
+            current_player_id = self.turn_order[player_index]
+            
+            # Update game state
+            self.state.current_player_id = current_player_id
+            self.state.current_phase = GamePhase.TURN
+            self.state.current_turn = current_turn + 1  # 1-based for display
+            
+            player = self.state.players[current_player_id]
+            
+            print(f"\n--- Turn {self.state.current_turn} ---")
+            print(f"Player {current_player_id} ({player.name})'s turn")
+            
+            # Skip dead players
+            if not player.is_alive:
+                print(f"  Player {current_player_id} is dead, skipping turn")
+                current_turn += 1
+                continue
+            
+            # Get available actions for current player
+            available_actions = self.logic.get_available_actions(current_player_id)
+            print(f"  Can attack regions: {available_actions['attack']}")
+            print(f"  Can fortify regions: {available_actions['fortify']}")
+            
+            # Check if player has any actions available
+            if not available_actions['attack'] and not available_actions['fortify']:
+                print(f"  No available actions, skipping turn")
+                current_turn += 1
+                continue
+            
+            # Execute turn based on player type
+            if player.player_type == PlayerType.HUMAN:
+                # Human player: wait for UI selection
+                action_completed = self._execute_human_turn(current_player_id, available_actions)
+            else:
+                # AI player: use StrategicAI to determine action
+                action_completed = self._execute_ai_turn(current_player_id, available_actions)
+            
+            # Only increment if action was completed
+            if action_completed:
+                current_turn += 1
+                
+                # Check if game should end early
+                alive_count = len(self.state.get_alive_players())
+                if alive_count <= 1:
+                    print("\n  Only 0-1 players alive, ending turn phase early")
+                    break
+        
+        # End of turn phase
+        print("\n=== TURN PHASE COMPLETE ===")
+        self.end_turn_phase()
+
+    def _execute_human_turn(self, player_id: int, available_actions: Dict[str, List[int]]) -> bool:
+        """
+        Execute human player's turn.
+        
+        Args:
+            player_id: ID of human player
+            available_actions: Available attack and fortify targets
+            
+        Returns:
+            True if turn was completed, False otherwise
+        """
+        print(f"  Waiting for human player {player_id} to choose action...")
+        
+        # Highlight available regions
+        self._highlight_available_regions(player_id, available_actions)
+        
+        # Prepare UI state
+        self.waiting_for_region_selection = True
+        self.selectable_region_ids = available_actions['attack'] + available_actions['fortify']
+        self.current_selection_player = player_id
+        self.selected_action = None
+        self.selected_region_id = None
+        
+        self.message_text = f"{self.state.players[player_id].name}'s turn - Click a highlighted region"
+        self.message_timer = time.time()
+        
+        # Wait for region selection in game loop
+        selection_timeout = time.time() + 60  # 60 second timeout
+        while self.waiting_for_region_selection and time.time() < selection_timeout:
+            self.handle_events()
+            self.update()
+            self.draw()
+            pygame.time.delay(10)
+        
+        # Check if selection was made
+        if self.selected_region_id is None or self.selected_action is None:
+            print(f"  No selection made, auto-selecting action...")
+            # Auto-select an action
+            if available_actions['attack']:
+                self.selected_region_id = available_actions['attack'][0]
+                self.selected_action = "attack"
+            elif available_actions['fortify']:
+                self.selected_region_id = available_actions['fortify'][0]
+                self.selected_action = "fortify"
+            else:
+                return False
+        
+        # Execute the selected action
+        success = self._execute_turn_action(player_id, self.selected_region_id, self.selected_action)
+        
+        # Clean up
+        self._unhighlight_all_regions()
+        self.waiting_for_region_selection = False
+        
+        return success
+
+    
+    def _highlight_available_regions(self, player_id: int, available_actions: Dict[str, List[int]]) -> None:
+        """
+        Highlight available regions for human player to select.
+        
+        Args:
+            player_id: ID of player
+            available_actions: Dictionary with 'attack' and 'fortify' region lists
+        """
+        # Unhighlight all first
+        for region in self.state.regions.values():
+            region.is_selectable = False
+        
+        # Highlight attack targets
+        for region_id in available_actions['attack']:
+            region = self.state.regions[region_id]
+            region.is_selectable = True
+        
+        # Highlight fortify targets
+        for region_id in available_actions['fortify']:
+            region = self.state.regions[region_id]
+            region.is_selectable = True
+        
+        print(f"  Highlighted {len(available_actions['attack'])} attack and {len(available_actions['fortify'])} fortify targets")
+
+    def _unhighlight_all_regions(self) -> None:
+        """Remove highlighting from all regions."""
+        for region in self.state.regions.values():
+            region.is_selectable = False
+
+    def _execute_ai_turn(self, player_id: int, available_actions: Dict[str, List[int]]) -> bool:
+        """
+        Execute AI player's turn using StrategicAI methods.
+        
+        Args:
+            player_id: ID of AI player
+            available_actions: Available attack and fortify targets
+            
+        Returns:
+            True if action was executed
+        """
+        ai = self.ai_players.get(player_id)
+        if not ai:
+            print(f"  No AI controller for player {player_id}")
+            return True
+        
+        print(f"  AI {player_id} thinking...")
+        
+        action_type = None
+        target_region_id = None
+        ai_choice = random.randint(0,1)  # 0 -> Attack; 1 -> Fortify
+        
+        # Check for attack opportunities
+        if ai_choice == 0 and available_actions['attack']:
+            # Get Region objects for available attack targets
+            attack_targets = [self.state.regions[rid] for rid in available_actions['attack']]
+            
+            # Use StrategicAI to choose best attack target
+            chosen_target = ai.choose_attack_target(attack_targets)
+            if chosen_target:
+                action_type = "attack"
+                target_region_id = chosen_target.region_id
+                print(f"  AI {player_id} chooses to attack region {target_region_id}")
+        
+        # If no attack, try fortify
+        if action_type is None and available_actions['fortify']:
+            # Get Region objects for available fortify targets
+            fortify_targets = [self.state.regions[rid] for rid in available_actions['fortify']]
+            
+            # Use StrategicAI to choose best region to fortify
+            chosen_target = ai.choose_region_to_fortify(fortify_targets)
+            if chosen_target:
+                action_type = "fortify"
+                target_region_id = chosen_target.region_id
+                print(f"  AI {player_id} chooses to fortify region {target_region_id}")
+        
+        # If still no action, skip
+        if action_type is None or target_region_id is None:
+            print(f"  AI {player_id} has no good actions, skipping turn")
+            return True
+        
+        # Execute the action
+        self._execute_turn_action(player_id, target_region_id, action_type)
+        return True
+
+    def _execute_turn_action(self, player_id: int, region_id: int, action_type: str) -> bool:
+        """
+        Execute a turn action (attack or fortify).
+        
+        Args:
+            player_id: ID of player executing action
+            region_id: ID of target region
+            action_type: "attack" or "fortify"
+            
+        Returns:
+            True if action was successful
+        """
+        print(f"  Executing {action_type} action on region {region_id}...")
+        
+        if action_type == "attack":
+            # Validate attack
+            if not self.logic.can_attack_region(player_id, region_id):
+                print(f"  Invalid attack attempt")
+                return False
+            
+            # Trigger battle
+            self._start_turn_battle(player_id, region_id)
+            return True
+        
+        elif action_type == "fortify":
+            # Validate fortify
+            if not self.logic.can_fortify_region(player_id, region_id):
+                print(f"  Invalid fortify attempt")
+                return False
+            
+            # Execute fortification
+            success = self.logic.fortify_region(player_id, region_id)
+            
+            if success:
+                print(f"  Player {player_id} fortified region {region_id}")
+                # Play sound if available
+                if self.sound_manager:
+                    self.sound_manager.play_sound("fortify")
+                
+                # Draw changes
+                self.draw()
+                pygame.time.delay(500)
+            
+            return success
+        
+        return False
+
+    def _start_turn_battle(self, attacker_id: int, region_id: int) -> None:
+        """
+        Start a battle during turn phase.
+        
+        Args:
+            attacker_id: ID of attacking player
+            region_id: ID of region being attacked
+        """
+        region = self.state.regions[region_id]
+        defender_id = region.owner_id
+        
+        if defender_id is None:
+            print(f"  Error: Region {region_id} has no owner")
             return
         
-        # Set first player
-        self.state.current_player_id = turn_order[0]
-        self.state.current_turn = 1
+        print(f"  Battle: Player {attacker_id} attacking {region.name} (owned by {defender_id})")
         
-        # Reset all capital regeneration counters
-        for capital in self.state.capitals.values():
-            capital.turns_since_last_attack = 0
+        # Set up battle state
+        self.state.current_phase = GamePhase.CAPITAL_ATTACK if region.region_type == RegionType.CAPITAL else GamePhase.BATTLE
+        self.state.current_battle = BattleResult(
+            attacker_id=attacker_id,
+            defender_id=defender_id,
+            region_id=region_id
+        )
         
-        print(f"Turn order: {turn_order}")
-        print(f"Player {self.state.current_player_id}'s turn")
+        # Start battle question flow (blocking)
+        self.start_battle_question_flow()
+
+    def handle_turn_region_click(self, region_id: int) -> None:
+        """Handle region click during turn phase for human player selection."""
+        if not self.waiting_for_region_selection:
+            return
+        
+        region = self.state.regions.get(region_id)
+        if not region or not region.is_selectable:
+            return
+        
+        # Determine action type based on region ownership
+        if region.owner_id == self.current_selection_player:
+            self.selected_action = "fortify"
+        else:
+            self.selected_action = "attack"
+        
+        self.selected_region_id = region_id
+        self.waiting_for_region_selection = False
+        print(f"  Human selected region {region_id} for {self.selected_action}")
+
+    def start_battle_question_flow(self) -> None:
+        """
+        Start the battle question flow.
+        Gets answers from players and determines battle outcome.
+        """
+        if not self.state.current_battle:
+            return
+        
+        attacker_id = self.state.current_battle.attacker_id
+        defender_id = self.state.current_battle.defender_id
+        
+        print(f"  Starting battle between {attacker_id} and {defender_id}")
+        
+        # Get a multiple choice question from database
+        categories = self.config.get_included_categories()
+        question = self.trivia_db.get_multiple_choice_question(categories)
+        
+        if not question:
+            # Fallback question
+            question = Question(
+                id=0,
+                text="What is the capital of France?",
+                category="General Knowledge",
+                question_type=QuestionType.MULTIPLE_CHOICE,
+                correct_answer="Paris",
+                options=["Paris", "London", "Berlin", "Madrid"]
+            )
+        
+        # Get answers from both players
+        attacker_answer = None
+        defender_answer = None
+        
+        attacker = self.state.players[attacker_id]
+        defender = self.state.players[defender_id]
+        
+        # Get attacker answer
+        if attacker.player_type == PlayerType.HUMAN:
+            attacker_answer = self._get_human_battle_answer(question)
+        else:
+            ai = self.ai_players.get(attacker_id)
+            if ai:
+                think_time = self.config.get_ai_think_time() / 1000.0
+                attacker_answer = ai.answer_multiple_choice(question, think_time)
+        
+        # Get defender answer
+        if defender.player_type == PlayerType.HUMAN:
+            defender_answer = self._get_human_battle_answer(question)
+        else:
+            ai = self.ai_players.get(defender_id)
+            if ai:
+                think_time = self.config.get_ai_think_time() / 1000.0
+                defender_answer = ai.answer_multiple_choice(question, think_time)
+        
+        # Resolve the battle
+        if attacker_answer is not None and defender_answer is not None:
+            result = self.logic.resolve_battle(
+                attacker_id=attacker_id,
+                defender_id=defender_id,
+                region_id=self.state.current_battle.region_id,
+                question=question,
+                attacker_answer=attacker_answer,
+                defender_answer=defender_answer
+            )
+            
+            # Check if tie in MC (both answered correctly)
+            if result.winner_id is None:
+                print("  Tie in multiple choice! Going to open answer tie-breaker...")
+                result = self._resolve_battle_tie_with_open_answer(
+                    attacker_id=attacker_id,
+                    defender_id=defender_id,
+                    region_id=self.state.current_battle.region_id
+                )
+            
+            # Apply battle result
+            self._apply_battle_result(result)
+
+    def _get_human_battle_answer(self, question: Question) -> Optional[str]:
+        """
+        Get human player's answer for a battle question.
+        
+        Args:
+            question: The question to answer
+            
+        Returns:
+            Player's answer, or None if timeout
+        """
+        print("  Waiting for human player battle answer...")
+        
+        # Show question through screen manager
+        if self.screen_manager and question:
+            self.screen_manager.show_question(
+                question=question,
+                time_limit=30  # Default 30 second time limit for battle questions
+            )
+        
+        # Wait for answer
+        start_time = time.time()
+        self.waiting_for_human_answer = True
+        self.human_answer_value = None
+        self.current_question_screen = "battle"
+        
+        while self.waiting_for_human_answer:
+            elapsed = time.time() - start_time
+            if elapsed > 30:  # 30 second timeout
+                print("  Time's up for battle question!")
+                self.waiting_for_human_answer = False
+                break
+            
+            self.handle_events()
+            self.update()
+            self.draw()
+            pygame.time.delay(10)
+        
+        answer = self.human_answer_value
+        self.human_answer_value = None  # Reset for next question
+        return answer
+
+    def _resolve_battle_tie_with_open_answer(self, attacker_id: int, defender_id: int, 
+                                            region_id: int) -> BattleResult:
+        """
+        Resolve a tie in multiple choice with an open answer question.
+        
+        Args:
+            attacker_id: ID of attacking player
+            defender_id: ID of defending player
+            region_id: ID of region being attacked
+            
+        Returns:
+            BattleResult with winner determined by open answer proximity
+        """
+        # Get open answer question
+        categories = self.config.get_included_categories()
+        question = self.trivia_db.get_open_question(categories)
+        
+        if not question:
+            # Fallback question
+            question = Question(
+                id=0,
+                text="What is 42?",
+                category="General Knowledge",
+                question_type=QuestionType.OPEN_ANSWER,
+                correct_answer=42,
+                options=[]
+            )
+        
+        print(f"  Tie-breaker question: {question.text}")
+        
+        # Get answers from both players (only these two)
+        answers = {}
+        answer_times = {}
+        
+        attacker = self.state.players[attacker_id]
+        defender = self.state.players[defender_id]
+        
+        # Attacker's answer
+        if attacker.player_type == PlayerType.HUMAN:
+            answer = self._get_human_battle_open_answer(question)
+        else:
+            ai = self.ai_players.get(attacker_id)
+            if ai:
+                think_time = self.config.get_ai_think_time() / 1000.0
+                answer = ai.answer_open_question(question, think_time)
+            else:
+                answer = None
+        
+        if answer is not None:
+            answers[attacker_id] = answer
+            answer_times[attacker_id] = time.time()
+        
+        # Defender's answer
+        if defender.player_type == PlayerType.HUMAN:
+            answer = self._get_human_battle_open_answer(question)
+        else:
+            ai = self.ai_players.get(defender_id)
+            if ai:
+                think_time = self.config.get_ai_think_time() / 1000.0
+                answer = ai.answer_open_question(question, think_time)
+            else:
+                answer = None
+        
+        if answer is not None:
+            answers[defender_id] = answer
+            answer_times[defender_id] = time.time()
+        
+        # Resolve with open answer battle logic
+        result = self.logic.resolve_open_answer_battle(
+            attacker_id=attacker_id,
+            defender_id=defender_id,
+            region_id=region_id,
+            question=question,
+            answers=answers,
+            answer_times=answer_times
+        )
+        
+        return result
+
+    def _get_human_battle_open_answer(self, question: Question) -> Optional[float]:
+        """
+        Get human player's answer for a tie-breaking open answer question.
+        
+        Args:
+            question: The open answer question
+            
+        Returns:
+            Player's numeric answer, or None if timeout
+        """
+        print("  Waiting for human player open answer (tie-breaker)...")
+        
+        # Show open answer question
+        if self.screen_manager and question:
+            self.screen_manager.show_open_question(
+                question=question,
+                time_limit=30  # 30 second timeout
+            )
+        
+        # Wait for answer
+        start_time = time.time()
+        self.waiting_for_human_answer = True
+        self.human_answer_value = None
+        self.current_question_screen = "battle"
+        
+        while self.waiting_for_human_answer:
+            elapsed = time.time() - start_time
+            if elapsed > 30:  # 30 second timeout
+                print("  Time's up for open answer tie-breaker!")
+                self.waiting_for_human_answer = False
+                return None
+            
+            self.handle_events()
+            self.update()
+            self.draw()
+            pygame.time.delay(10)
+        
+        return self.human_answer_value
+
+    def _apply_battle_result(self, result: BattleResult) -> None:
+        """
+        Apply battle result to game state.
+        
+        Args:
+            result: BattleResult with winner and outcome
+        """
+        if result.winner_id is None:
+            print("  Battle result: TIE - no winner determined")
+            return
+        
+        winner = self.state.players.get(result.winner_id)
+        if winner is None:
+            print("  Error: Winner not found")
+            return
+            
+        region = self.state.regions.get(result.region_id)
+        
+        if region is None:
+            print("  Error: Region not found")
+            return
+        
+        print(f"  Battle result: {winner.name} wins!")
+        
+        # Check if this is a capital attack
+        if self.state.current_phase == GamePhase.CAPITAL_ATTACK:
+            # Handle capital attack
+            self.logic.execute_capital_attack(result.attacker_id, result.region_id, result)
+            return
+        
+        # If attacker wins, capture the region
+        if result.winner_id == result.attacker_id and result.region_captured:
+            print(f"  Capturing region {region.name}...")
+            old_owner_id = region.owner_id
+            
+            # Update region ownership
+            region.owner_id = result.attacker_id
+            region.fortification = FortificationLevel.NONE  # Reset fortification
+            
+            # Update player regions
+            if old_owner_id is not None:
+                old_owner = self.state.players[old_owner_id]
+                if result.region_id in old_owner.regions_controlled:
+                    old_owner.remove_region(result.region_id)
+            
+            attacker = self.state.players[result.attacker_id]
+            attacker.add_region(result.region_id)
+            
+            # Award points
+            points = self.logic.calculate_region_value(region)
+            attacker.score += points
+            
+            print(f"  {attacker.name} gained {points} points")
+        
+        # Award defender bonus if they won
+        if result.defender_bonus_awarded and result.winner_id == result.defender_id:
+            defender = self.state.players[result.defender_id]
+            bonus_points = 50  # Fixed defender bonus
+            defender.score += bonus_points
+            print(f"  {defender.name} earned {bonus_points} defender bonus points")
+
+    def end_turn_phase(self) -> None:
+        """
+        End the turn phase and determine game outcome.
+        """
+        print("\n=== END TURN PHASE ===")
+        
+        # Check for winner
+        winner = self.logic.check_game_over()
+        
+        if winner is not None:
+            print(f"\n*** GAME OVER ***")
+            print(f"Player {winner} ({self.state.players[winner].name}) wins!")
+            self.state.current_phase = GamePhase.GAME_OVER
+        else:
+            # More rounds could happen, but for now move to game over
+            print("Turn phase complete. Game ending...")
+            self.state.current_phase = GamePhase.GAME_OVER
 
     def run(self) -> None:
         """Main game loop."""

@@ -104,13 +104,13 @@ class GameConfig:
     # ===== MAP SETTINGS =====
     min_regions: int = 16
     max_regions: int = 32
-    region_count: int = 24  # Default middle ground
+    region_count: int = 16  # Default middle ground
     min_capital_distance: int = 2  # Capitals cannot spawn adjacent
     
     # ===== TURN SETTINGS =====
     min_turns_per_player: int = 5
     max_turns_per_player: int = 20
-    turns_per_player: int = 10  # Default middle ground
+    turns_per_player: int = 3  # Default middle ground
     
     # ===== POINT VALUES =====
     capital_points: int = 1000  # Capital value

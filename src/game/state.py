@@ -325,7 +325,7 @@ class GameState:
     current_player_id: Optional[int] = None
     current_turn: int = 0
     max_turns_per_player: int = 10
-    selected_region_id: Optional[int] = None  # For UI selection (Rule 7)
+    selected_region_id: Optional[int] = None  # For UI selection
     
     # Battle state
     current_battle: Optional[BattleResult] = None
@@ -495,6 +495,11 @@ class GameState:
         # Transfer score
         conqueror.score += eliminated.score
         eliminated.score = 0
+        
+        # Update capital owner if this player had one
+        for capital in self.capitals.values():
+            if capital.owner_id == eliminated_id:
+                capital.owner_id = conqueror_id
     
     def get_alive_players(self) -> List[Player]:
         """Get all alive players."""
