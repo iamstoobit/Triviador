@@ -686,9 +686,18 @@ class Game:
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.running = False
+                
+                # Pass keyboard events to question screen if it's active and waiting for answer
+                elif self.waiting_for_human_answer and self.screen_manager and self.screen_manager.current_screen == ScreenType.QUESTION:
+                    if self.screen_manager.question_screen.handle_event(event):
+                        # Question screen handled the event (could be numeric input or submission)
+                        if self.screen_manager.question_screen.selected_answer is not None:
+                            self.human_answer_value = self.screen_manager.question_screen.selected_answer
+                            self.waiting_for_human_answer = False
+                        return
                     
-                # Handle number input for open answer questions
-                elif self.waiting_for_human_answer and self.current_question_screen == "occupation":
+                # Handle number input for open answer questions (keyboard fallback for occupation phase)
+                elif self.waiting_for_human_answer and self.current_question_screen in ["occupation", "battle"]:
                     if pygame.K_0 <= event.key <= pygame.K_9:
                         # Append digit to answer
                         digit = event.key - pygame.K_0
@@ -1042,6 +1051,8 @@ class Game:
     def _start_turn_battle(self, attacker_id: int, region_id: int) -> None:
         """
         Start a battle during turn phase.
+        For capital regions: keep attacking until capital is destroyed or attacker loses.
+        For normal regions: end turn after one battle.
         
         Args:
             attacker_id: ID of attacking player
@@ -1056,16 +1067,44 @@ class Game:
         
         print(f"  Battle: Player {attacker_id} attacking {region.name} (owned by {defender_id})")
         
-        # Set up battle state
-        self.state.current_phase = GamePhase.CAPITAL_ATTACK if region.region_type == RegionType.CAPITAL else GamePhase.BATTLE
-        self.state.current_battle = BattleResult(
-            attacker_id=attacker_id,
-            defender_id=defender_id,
-            region_id=region_id
-        )
+        # For capital attacks, loop until capital is destroyed or defender wins
+        is_capital = region.region_type == RegionType.CAPITAL
         
-        # Start battle question flow (blocking)
-        self.start_battle_question_flow()
+        while True:
+            # Set up battle state
+            self.state.current_phase = GamePhase.CAPITAL_ATTACK if is_capital else GamePhase.BATTLE
+            self.state.current_battle = BattleResult(
+                attacker_id=attacker_id,
+                defender_id=defender_id,
+                region_id=region_id
+            )
+            
+            # Start battle question flow (blocking)
+            self.start_battle_question_flow()
+            
+            # If this was a capital attack, check if capital still exists
+            if is_capital:
+                # Check if the capital region still exists
+                if region_id not in self.state.capitals:
+                    # Capital was destroyed, turn ends
+                    print(f"  Capital destroyed. Turn ends.")
+                    break
+                # Check if defender is still alive
+                if not self.state.players[defender_id].is_alive:
+                    # Defender eliminated, turn ends
+                    print(f"  Defender eliminated. Turn ends.")
+                    break
+                # Check the result of the last battle
+                if self.state.current_battle.winner_id != attacker_id:
+                    # Attacker lost the last battle, turn ends
+                    print(f"  Attack repelled. Turn ends.")
+                    break
+                # Attacker won but capital still has HP - ask another question
+                print(f"  Capital damaged but not destroyed. Asking for another attack...")
+                continue
+            else:
+                # Normal region attack - turn ends
+                break
 
     def handle_turn_region_click(self, region_id: int) -> None:
         """Handle region click during turn phase for human player selection."""
@@ -1086,13 +1125,16 @@ class Game:
         self.waiting_for_region_selection = False
         print(f"  Human selected region {region_id} for {self.selected_action}")
 
-    def start_battle_question_flow(self) -> None:
+    def start_battle_question_flow(self) -> Optional[BattleResult]:
         """
         Start the battle question flow.
         Gets answers from players and determines battle outcome.
+        
+        Returns:
+            BattleResult with battle outcome, or None if no valid answers
         """
         if not self.state.current_battle:
-            return
+            return None
         
         attacker_id = self.state.current_battle.attacker_id
         defender_id = self.state.current_battle.defender_id
@@ -1140,6 +1182,7 @@ class Game:
                 defender_answer = ai.answer_multiple_choice(question, think_time)
         
         # Resolve the battle
+        result = None
         if attacker_answer is not None and defender_answer is not None:
             result = self.logic.resolve_battle(
                 attacker_id=attacker_id,
@@ -1159,8 +1202,15 @@ class Game:
                     region_id=self.state.current_battle.region_id
                 )
             
+            # Update current_battle with the result
+            self.state.current_battle.winner_id = result.winner_id
+            self.state.current_battle.region_captured = result.region_captured
+            self.state.current_battle.defender_bonus_awarded = result.defender_bonus_awarded
+            
             # Apply battle result
             self._apply_battle_result(result)
+        
+        return result
 
     def _get_human_battle_answer(self, question: Question) -> Optional[str]:
         """
