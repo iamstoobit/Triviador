@@ -286,18 +286,29 @@ class MenuScreen:
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             mouse_pos = event.pos
             
-            # Check buttons
-            for button in self.buttons:
-                if button.rect.collidepoint(mouse_pos):
-                    return self._handle_button_click(button.action)
-            
-            # Check sliders
+            # Check sliders FIRST (before buttons) so they can be dragged directly
             for slider_name, slider_rect in self.sliders.items():
-                if slider_rect.collidepoint(mouse_pos):
+                # Make clickable area slightly larger (extend above and below slider)
+                extended_rect = slider_rect.inflate(0, 40)
+                if extended_rect.collidepoint(mouse_pos):
                     self.is_dragging_slider = slider_name
                     self._update_slider_value(slider_name, mouse_pos[0])
                     return True
-        
+            
+            # Check buttons
+            for button in self.buttons:
+                if button.rect.collidepoint(mouse_pos):
+                    # Skip button click if it's a slider text button and we're in the slider area
+                    if button.action in ["region_slider", "turns_slider"]:
+                        # Only trigger button action if not on the actual slider area
+                        slider_name = "regions" if button.action == "region_slider" else "turns"
+                        slider_rect = self.sliders[slider_name]
+                        extended_rect = slider_rect.inflate(0, 40)
+                        if not extended_rect.collidepoint(mouse_pos):
+                            return self._handle_button_click(button.action)
+                        return False
+                    return self._handle_button_click(button.action)
+            
         elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
             self.is_dragging_slider = None
         

@@ -77,6 +77,10 @@ class Game:
         # Map manager
         self.map_manager = MapManager()
         
+        # Menu/Setup screen (type hint at module level to avoid circular imports)
+        self.menu_screen: Any = None  # Will be initialized in setup_display
+        self.game_settings_confirmed = False
+        
         # Turn phase
         self.turn_order: List[int] = []
         self.current_player_index: int = 0
@@ -101,8 +105,9 @@ class Game:
         
         # Initialize game objects
         self.setup_display()
-        self.setup_players()
-        self.setup_regions()
+        # Set initial phase to SETUP (menu)
+        self.state.current_phase = GamePhase.SETUP
+        # Players and regions will be initialized after setup screen is confirmed
         
     def setup_display(self) -> None:
         """Initialize Pygame display and screen manager."""
@@ -121,9 +126,39 @@ class Game:
         # Initialize screen manager
         self.screen_manager = ScreenManager(self.screen, self.config)
         
+        # Initialize menu screen
+        from src.ui.menu_screen import MenuScreen
+        self.menu_screen = MenuScreen(self.screen, self.config)
+        
         # Load sounds
         if self.sound_manager:
             self.sound_manager.load_sounds(self.config.assets_dir)
+    
+    def apply_game_settings(self, settings: Dict[str, Any]) -> None:
+        """
+        Apply settings from the menu screen to the game configuration.
+        
+        Args:
+            settings: Dictionary with game settings from MenuScreen.get_settings()
+        """
+        print("Applying game settings...")
+        # Update config with menu selections
+        self.config.ai_count = settings['ai_count']
+        self.config.difficulty = settings['difficulty']
+        self.config.selected_categories = settings['selected_categories']
+        self.config.category_mode = settings['category_mode']
+        self.config.region_count = settings['region_count']
+        self.config.turns_per_player = settings['turns_per_player']
+        
+        print(f"Settings applied: {self.config.ai_count} AI, {self.config.difficulty.value} difficulty")
+        print(f"Regions: {self.config.region_count}, Turns per player: {self.config.turns_per_player}")
+        print(f"Categories: {len(self.config.selected_categories)} selected")
+        
+        # Now setup the game with these settings
+        self.state.max_turns_per_player = self.config.turns_per_player
+        self.setup_players()
+        self.setup_regions()
+        self.game_settings_confirmed = True
     
     def setup_players(self) -> None:
         """Initialize all players (human + AI)."""
@@ -183,6 +218,144 @@ class Game:
         # Start with spawning phase
         self.state.current_phase = GamePhase.SPAWNING
         self.start_spawning_phase()
+    
+    def show_setup_screen(self) -> None:
+        """Show the setup/menu screen and wait for player to start game."""
+        while self.running and not self.game_settings_confirmed:
+            # Handle events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.running = False
+                    return
+                
+                # Handle menu screen events
+                if self.menu_screen.handle_event(event):
+                    # Check if start button was clicked
+                    settings = self.menu_screen.get_settings()
+                    if event.type == pygame.MOUSEBUTTONDOWN:
+                        # Find which button was clicked
+                        for button in self.menu_screen.buttons:
+                            if button.rect.collidepoint(event.pos) and button.action == "start":
+                                # Apply settings and start game
+                                self.apply_game_settings(settings)
+                                return
+                            elif button.rect.collidepoint(event.pos) and button.action == "exit":
+                                # Exit game
+                                self.running = False
+                                return
+            
+            # Update and draw menu
+            self.menu_screen.update()
+            self.screen.fill(self.menu_screen.colors.background)
+            self.menu_screen.draw()
+            pygame.display.flip()
+            self.clock.tick(self.config.fps)
+    
+    def show_game_over_screen(self) -> None:
+        """Show the game over screen with final standings and new game button."""
+        # Get final standings (sorted by score descending)
+        standings = sorted(
+            [(pid, player) for pid, player in self.state.players.items()],
+            key=lambda x: x[1].score,
+            reverse=True
+        )
+        
+        # Find human player's position
+        human_position = None
+        for position, (player_id, player) in enumerate(standings, 1):
+            if player_id == 0:  # Human is always player 0
+                human_position = position
+                break
+        
+        # Show game over screen
+        show_new_game = False
+        while self.running and not show_new_game:
+            # Handle events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.running = False
+                    return
+                
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    # Check if new game button was clicked
+                    mouse_pos = event.pos
+                    new_game_rect = pygame.Rect(
+                        self.config.screen_width // 2 - 100,
+                        self.config.screen_height - 120,
+                        200, 50
+                    )
+                    if new_game_rect.collidepoint(mouse_pos):
+                        show_new_game = True
+            
+            # Draw game over screen
+            self.screen.fill(self.config.colors.background)
+            
+            # Draw title
+            title_font = pygame.font.SysFont(self.config.font_name, self.config.font_sizes["title"])
+            title_text = "GAME OVER"
+            title_surf = title_font.render(title_text, True, self.config.colors.text_accent)
+            title_rect = title_surf.get_rect(center=(self.config.screen_width // 2, 80))
+            self.screen.blit(title_surf, title_rect)
+            
+            # Draw human player placement
+            if human_position:
+                placement_map = {1: "1st", 2: "2nd", 3: "3rd", 4: "4th"}
+                placement_text = f"You finished in {placement_map.get(human_position, f'{human_position}th')} place!"
+                placement_font = pygame.font.SysFont(self.config.font_name, self.config.font_sizes["heading"])
+                placement_surf = placement_font.render(placement_text, True, self.config.colors.text_primary)
+                placement_rect = placement_surf.get_rect(center=(self.config.screen_width // 2, 180))
+                self.screen.blit(placement_surf, placement_rect)
+            
+            # Draw standings
+            standings_font = pygame.font.SysFont(self.config.font_name, self.config.font_sizes["body"])
+            standings_y = 280
+            spacing = 50
+            
+            for position, (player_id, player) in enumerate(standings, 1):
+                standing_text = f"{position}. {player.name} - {player.score} points"
+                standing_surf = standings_font.render(standing_text, True, self.config.colors.text_primary)
+                standing_rect = standing_surf.get_rect(center=(self.config.screen_width // 2, standings_y + position * spacing))
+                self.screen.blit(standing_surf, standing_rect)
+            
+            # Draw new game button
+            new_game_rect = pygame.Rect(
+                self.config.screen_width // 2 - 100,
+                self.config.screen_height - 120,
+                200, 50
+            )
+            from src.utils.helpers import draw_button
+            draw_button(
+                self.screen,
+                new_game_rect,
+                "New Game",
+                pygame.font.SysFont(self.config.font_name, self.config.font_sizes["body"]),
+                self.config.colors.button_normal,
+                self.config.colors.button_hover,
+                self.config.colors.text_primary
+            )
+            
+            pygame.display.flip()
+            self.clock.tick(self.config.fps)
+        
+        # Reset game for new game
+        if show_new_game:
+            self.reset_game()
+    
+    def reset_game(self) -> None:
+        """Reset the game to allow a new game to be played."""
+        print("\n=== RESETTING GAME ===")
+        
+        # Reset game state
+        self.state = GameState()
+        
+        # Reset settings confirmation
+        self.game_settings_confirmed = False
+        
+        # Recreate menu screen for setup
+        from src.ui.menu_screen import MenuScreen
+        self.menu_screen = MenuScreen(self.screen, self.config)
+        
+        print("Game reset. Showing setup screen...")
     
     def start_spawning_phase(self) -> None:
         """Start the capital spawning phase."""
@@ -1455,6 +1628,16 @@ class Game:
         self.running = True
         
         while self.running:
+            # If setup screen not confirmed, show menu
+            if not self.game_settings_confirmed:
+                self.show_setup_screen()
+                continue
+            
+            # If game is over, show game over screen
+            if self.state.current_phase == GamePhase.GAME_OVER:
+                self.show_game_over_screen()
+                continue
+            
             # Handle events
             self.handle_events()
             
