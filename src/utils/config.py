@@ -90,13 +90,12 @@ class GameConfig:
     
     # ===== CATEGORIES =====
     available_categories: List[str] = field(default_factory=lambda: [
-        "Geography", "History", "Science", "Entertainment", 
-        "Sports", "Art", "Literature", "Technology", "Movies",
-        "Music", "General Knowledge", "Pop Culture"
+        "Geography", "History", "Science", "Literature", 
+        "Sports", "General Knowledge"
     ])
 
     selected_categories: List[str] = field(default_factory=lambda: [
-        "Geography", "History", "Science", "Entertainment"
+        "Geography", "History", "Science", "Literature"
     ])
 
     category_mode: CategorySelectionMode = CategorySelectionMode.INCLUDE
@@ -169,7 +168,7 @@ class GameConfig:
     data_dir: str = "data"
     assets_dir: str = "assets"
     config_dir: str = "config"
-    questions_db: str = "questions.db"
+    questions_db: str = "data/questions.db"
     
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""

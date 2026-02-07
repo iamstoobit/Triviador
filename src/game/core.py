@@ -1329,6 +1329,10 @@ class Game:
                 options=["Paris", "London", "Berlin", "Madrid"]
             )
         
+        # Store question for display
+        self.battle_question = question
+        print(f"  Battle question: {question.text}")
+        
         # Get answers from both players
         attacker_answer = None
         defender_answer = None

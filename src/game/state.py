@@ -20,8 +20,8 @@ class RegionType(Enum):
 
 class FortificationLevel(Enum):
     """Fortification levels for regions."""
-    NONE = 0
-    FORTIFIED = 1
+    NONE = auto()
+    FORTIFIED = auto()
 
 
 class GamePhase(Enum):
@@ -48,7 +48,7 @@ class Player:
     color: Tuple[int, int, int]
     score: int = 1000  # Starting score
     is_alive: bool = True
-    regions_controlled: List[int] = field(default_factory=list)  # Region IDs
+    regions_controlled: List[int] = field(default_factory=list[int])  # Region IDs
     capital_region_id: Optional[int] = None
     turns_played: int = 0
     
@@ -188,7 +188,7 @@ class Region:
     owner_id: Optional[int] = None  # None = neutral/unoccupied
     region_type: RegionType = RegionType.NORMAL
     fortification: FortificationLevel = FortificationLevel.NONE
-    adjacent_regions: List[int] = field(default_factory=list)  # IDs of adjacent regions
+    adjacent_regions: List[int] = field(default_factory=list[int])  # IDs of adjacent regions
     point_value: int = 500  # Current point value
     has_been_captured: bool = False  # Whether captured in battle before
     original_owner: Optional[int] = None  # First owner (for point tracking)
@@ -316,9 +316,9 @@ class GameState:
     """
     
     # Core game objects
-    players: Dict[int, Player] = field(default_factory=dict)
-    regions: Dict[int, Region] = field(default_factory=dict)
-    capitals: Dict[int, Capital] = field(default_factory=dict)  # key: region_id
+    players: Dict[int, Player] = field(default_factory=dict[int, Player])
+    regions: Dict[int, Region] = field(default_factory=dict[int, Region])
+    capitals: Dict[int, Capital] = field(default_factory=dict[int, Capital])  # key: region_id
     
     # Game state
     current_phase: GamePhase = GamePhase.SETUP
@@ -332,12 +332,12 @@ class GameState:
     battle_phase: int = 0  # 0 = first MC, 1 = OA if needed
     
     # Occupation phase
-    occupation_ranking: List[int] = field(default_factory=list)  # Player IDs in order
-    occupation_regions_remaining: List[int] = field(default_factory=list)  # Region IDs available
+    occupation_ranking: List[int] = field(default_factory=list[int])  # Player IDs in order
+    occupation_regions_remaining: List[int] = field(default_factory=list[int])  # Region IDs available
     
     # Game history
-    battle_history: List[BattleResult] = field(default_factory=list)
-    turn_history: List[Dict[str, Any]] = field(default_factory=list)
+    battle_history: List[BattleResult] = field(default_factory=list[BattleResult])
+    turn_history: List[Dict[str, Any]] = field(default_factory=list[dict[str, Any]])
     
     # Metadata
     game_id: str = field(default_factory=lambda: datetime.now().strftime("%Y%m%d_%H%M%S"))
@@ -417,7 +417,8 @@ class GameState:
         
         return adjacent_enemy_regions
     
-    def get_available_regions_for_occupation(self, player_id: int) -> Tuple[List[Region],List[Region]]:
+    def get_available_regions_for_occupation(
+            self, player_id: int) -> Tuple[List[Region], List[Region]]:
         """
         Get regions available for a player to occupy during occupation phase.
         Prioritizes adjacent regions, then any unoccupied region.
