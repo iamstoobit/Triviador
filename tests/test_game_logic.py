@@ -75,7 +75,7 @@ class TestGameState(unittest.TestCase):
         self.state.add_player(player1)
         self.state.add_player(player2)
         self.state.add_player(player3)
-        
+
         self.assertEqual(len(self.state.players), 3)
         self.assertEqual(self.state.players[0].player_type, PlayerType.HUMAN)
         self.assertEqual(self.state.players[1].player_type, PlayerType.AI)
@@ -97,10 +97,10 @@ class TestGameState(unittest.TestCase):
         )
         self.state.add_player(player1)
         self.state.add_player(player2)
-        
+
         player1_id = self.state.players[0].player_id
         player2_id = self.state.players[1].player_id
-        
+
         self.assertNotEqual(player1_id, player2_id)
 
     def test_get_player_by_id(self) -> None:
@@ -113,7 +113,7 @@ class TestGameState(unittest.TestCase):
         )
         self.state.add_player(player)
         player_id = self.state.players[0].player_id
-        
+
         retrieved = self.state.players.get(player_id)
         self.assertIsNotNone(retrieved)
         self.assertEqual(retrieved.name, "TestPlayer")
@@ -162,7 +162,7 @@ class TestRegion(unittest.TestCase):
     def test_region_fortification(self) -> None:
         """Test fortification state."""
         self.assertFalse(self.region1.is_fortified())
-        
+
         self.region1.fortification = FortificationLevel.LEVEL_1
         self.assertTrue(self.region1.is_fortified())
 
@@ -191,7 +191,7 @@ class TestGameLogic(unittest.TestCase):
         # Points 3-4-5 triangle
         pos1 = (0, 0)
         pos2 = (3, 4)
-        
+
         distance = self.logic.calculate_distance(pos1, pos2)
         self.assertAlmostEqual(distance, 5.0)
 
@@ -212,7 +212,7 @@ class TestGameLogic(unittest.TestCase):
         )
         self.state.add_player(player)
         player_id = self.state.players[0].player_id
-        
+
         # Create region owned by player
         region = Region(
             region_id=1,
@@ -223,7 +223,7 @@ class TestGameLogic(unittest.TestCase):
         )
         region.owner_id = player_id
         self.state.regions[1] = region
-        
+
         # Player cannot attack own region
         can_attack = self.logic.can_attack_region(player_id, 1)
         self.assertFalse(can_attack)
@@ -238,7 +238,7 @@ class TestGameLogic(unittest.TestCase):
         )
         self.state.add_player(player)
         player_id = self.state.players[0].player_id
-        
+
         # Create unowned region
         region = Region(
             region_id=1,
@@ -246,7 +246,7 @@ class TestGameLogic(unittest.TestCase):
             position=(100.0, 100.0)
         )
         self.state.regions[1] = region
-        
+
         # Player cannot attack unowned region
         can_attack = self.logic.can_attack_region(player_id, 1)
         self.assertFalse(can_attack)
@@ -261,7 +261,7 @@ class TestGameLogic(unittest.TestCase):
         )
         self.state.add_player(player)
         player_id = self.state.players[0].player_id
-        
+
         # Create region owned by player
         region = Region(
             region_id=1,
@@ -270,7 +270,7 @@ class TestGameLogic(unittest.TestCase):
             owner_id=player_id
         )
         self.state.regions[1] = region
-        
+
         # Player can fortify own region
         can_fortify = self.logic.can_fortify_region(player_id, 1)
         self.assertTrue(can_fortify)
@@ -291,10 +291,10 @@ class TestGameLogic(unittest.TestCase):
         )
         self.state.add_player(player1)
         self.state.add_player(player2)
-        
+
         player1_id = self.state.players[0].player_id
         player2_id = self.state.players[1].player_id
-        
+
         # Create region owned by player 2
         region = Region(
             region_id=1,
@@ -303,7 +303,7 @@ class TestGameLogic(unittest.TestCase):
             owner_id=player2_id
         )
         self.state.regions[1] = region
-        
+
         # Player 1 cannot fortify
         can_fortify = self.logic.can_fortify_region(player1_id, 1)
         self.assertFalse(can_fortify)
@@ -318,7 +318,7 @@ class TestGameLogic(unittest.TestCase):
         )
         self.state.add_player(player)
         player_id = self.state.players[0].player_id
-        
+
         # Create region already fortified
         region = Region(
             region_id=1,
@@ -328,7 +328,7 @@ class TestGameLogic(unittest.TestCase):
             fortification=FortificationLevel.LEVEL_3
         )
         self.state.regions[1] = region
-        
+
         # Cannot fortify
         can_fortify = self.logic.can_fortify_region(player_id, 1)
         self.assertFalse(can_fortify)

@@ -15,14 +15,15 @@ class Question:
     """
     Represents a trivia question.
     """
-    
+
     id: int
     text: str
     category: str
     question_type: QuestionType
     correct_answer: Any  # String for MC, number for Open Answer
     options: List[str]  # Empty for Open Answer
-    
+    difficulty: int = 1  # Difficulty level 1-5 (1=easiest, 5=hardest)
+
     def __post_init__(self) -> None:
         """Validate question data."""
         if self.question_type == QuestionType.MULTIPLE_CHOICE:
@@ -36,7 +37,7 @@ class Question:
                 float(self.correct_answer)
             except (ValueError, TypeError):
                 raise ValueError(f"Open answer questions must have numeric answers. Got: {self.correct_answer}")
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert question to dictionary for serialization."""
         return {
@@ -45,9 +46,10 @@ class Question:
             'category': self.category,
             'question_type': self.question_type.name,
             'correct_answer': self.correct_answer,
-            'options': self.options.copy()
+            'options': self.options.copy(),
+            'difficulty': self.difficulty
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Question:
         """Create question from dictionary."""
@@ -57,13 +59,14 @@ class Question:
             category=data['category'],
             question_type=QuestionType[data['question_type']],
             correct_answer=data['correct_answer'],
-            options=data['options']
+            options=data['options'],
+            difficulty=data.get('difficulty', 1)
         )
-    
+
     def is_multiple_choice(self) -> bool:
         """Check if question is multiple choice."""
         return self.question_type == QuestionType.MULTIPLE_CHOICE
-    
+
     def is_open_answer(self) -> bool:
         """Check if question is open answer."""
         return self.question_type == QuestionType.OPEN_ANSWER
@@ -84,7 +87,7 @@ def create_test_question() -> Question:
 
 if __name__ == "__main__":
     print("=== Testing Question Class ===")
-    
+
     # Test multiple choice question
     mc_question = Question(
         id=1,
@@ -97,7 +100,7 @@ if __name__ == "__main__":
     print(f"MC Question: {mc_question.text}")
     print(f"Correct: {mc_question.correct_answer}")
     print(f"Options: {mc_question.options}")
-    
+
     # Test open answer question
     oa_question = Question(
         id=2,
@@ -109,12 +112,12 @@ if __name__ == "__main__":
     )
     print(f"\nOA Question: {oa_question.text}")
     print(f"Correct: {oa_question.correct_answer}")
-    
+
     # Test serialization
     mc_dict = mc_question.to_dict()
     print(f"\nMC Question dict: {mc_dict}")
-    
+
     restored = Question.from_dict(mc_dict)
     print(f"Restored question text: {restored.text}")
-    
+
     print("\nAll tests passed!")

@@ -1,0 +1,187 @@
+[
+  {
+    "id": 1,
+    "text": "What is the capital of France?",
+    "category": "Geography",
+    "question_type": "MULTIPLE_CHOICE",
+    "correct_answer": "Paris",
+    "options": ["London", "Berlin", "Paris", "Madrid"],
+    "difficulty": 1
+  },
+  {
+    "id": 2,
+    "text": "Which planet is known as the Red Planet?",
+    "category": "Science",
+    "question_type": "MULTIPLE_CHOICE",
+    "correct_answer": "Mars",
+    "options": ["Venus", "Mars", "Jupiter", "Saturn"],
+    "difficulty": 1
+  },
+  {
+    "id": 3,
+    "text": "Who wrote 'Romeo and Juliet'?",
+    "category": "Literature",
+    "question_type": "MULTIPLE_CHOICE",
+    "correct_answer": "William Shakespeare",
+    "options": ["Jane Austen", "William Shakespeare", "Charles Dickens", "Oscar Wilde"],
+    "difficulty": 2
+  },
+  {
+    "id": 4,
+    "text": "What is the approximate value of pi to two decimal places?",
+    "category": "Math",
+    "question_type": "OPEN_ANSWER",
+    "correct_answer": 3.14,
+    "options": [],
+    "difficulty": 2
+  },
+  {
+    "id": 5,
+    "text": "In what year did the Titanic sink?",
+    "category": "History",
+    "question_type": "MULTIPLE_CHOICE",
+    "correct_answer": "1912",
+    "options": ["1905", "1912", "1920", "1918"],
+    "difficulty": 2
+  },
+  {
+    "id": 6,
+    "text": "What is the chemical symbol for Gold?",
+    "category": "Science",
+    "question_type": "MULTIPLE_CHOICE",
+    "correct_answer": "Au",
+    "options": ["Ag", "Au", "Fe", "Cu"],
+    "difficulty": 3
+  },
+  {
+    "id": 7,
+    "text": "How many novels did Jane Austen publish during her lifetime?",
+    "category": "Literature",
+    "question_type": "OPEN_ANSWER",
+    "correct_answer": 4,
+    "options": [],
+    "difficulty": 3
+  },
+  {
+    "id": 8,
+    "text": "What is the smallest country in the world by area?",
+    "category": "Geography",
+    "question_type": "MULTIPLE_CHOICE",
+    "correct_answer": "Vatican City",
+    "options": ["Monaco", "Vatican City", "San Marino", "Liechtenstein"],
+    "difficulty": 3
+  },
+  {
+    "id": 9,
+    "text": "Which mathematician developed the theory of relativity?",
+    "category": "Science",
+    "question_type": "MULTIPLE_CHOICE",
+    "correct_answer": "Albert Einstein",
+    "options": ["Isaac Newton", "Albert Einstein", "Marie Curie", "Stephen Hawking"],
+    "difficulty": 4
+  },
+  {
+    "id": 10,
+    "text": "What is the exact speed of light in kilometers per second?",
+    "category": "Science",
+    "question_type": "OPEN_ANSWER",
+    "correct_answer": 299792.458,
+    "options": [],
+    "difficulty": 4
+  },
+  {
+    "id": 11,
+    "text": "In what year did the Russian Revolution occur?",
+    "category": "History",
+    "question_type": "OPEN_ANSWER",
+    "correct_answer": 1917,
+    "options": [],
+    "difficulty": 4
+  },
+  {
+    "id": 12,
+    "text": "What is the Riemann Hypothesis?",
+    "category": "Math",
+    "question_type": "MULTIPLE_CHOICE",
+    "correct_answer": "A conjecture about the distribution of prime numbers",
+    "options": [
+      "A theorem about geometric shapes",
+      "A conjecture about the distribution of prime numbers",
+      "A principle about quantum mechanics",
+      "A law of thermodynamics"
+    ],
+    "difficulty": 5
+  },
+  {
+    "id": 13,
+    "text": "What is the exact number of atoms in a mole (Avogadro's number)?",
+    "category": "Science",
+    "question_type": "OPEN_ANSWER",
+    "correct_answer": 6.02214076e23,
+    "options": [],
+    "difficulty": 5
+  },
+  {
+    "id": 14,
+    "text": "What year did the Byzantine Empire fall?",
+    "category": "History",
+    "question_type": "OPEN_ANSWER",
+    "correct_answer": 1453,
+    "options": [],
+    "difficulty": 5
+  },
+  {
+    "id": 15,
+    "text": "How many strings does a standard violin have?",
+    "category": "Music",
+    "question_type": "OPEN_ANSWER",
+    "correct_answer": 4,
+    "options": [],
+    "difficulty": 1
+  },
+  {
+    "id": 16,
+    "text": "Which country won the FIFA World Cup in 2022?",
+    "category": "Sports",
+    "question_type": "MULTIPLE_CHOICE",
+    "correct_answer": "Argentina",
+    "options": ["France", "Argentina", "Brazil", "Germany"],
+    "difficulty": 1
+  },
+  {
+    "id": 17,
+    "text": "What is the largest ocean on Earth?",
+    "category": "Geography",
+    "question_type": "MULTIPLE_CHOICE",
+    "correct_answer": "Pacific Ocean",
+    "options": ["Atlantic Ocean", "Indian Ocean", "Arctic Ocean", "Pacific Ocean"],
+    "difficulty": 1
+  },
+  {
+    "id": 18,
+    "text": "In which country was the game of chess invented?",
+    "category": "History",
+    "question_type": "MULTIPLE_CHOICE",
+    "correct_answer": "India",
+    "options": ["Persia", "India", "Arabia", "China"],
+    "difficulty": 3
+  },
+  {
+    "id": 19,
+    "text": "What is the molecular weight of water (H2O)?",
+    "category": "Science",
+    "question_type": "OPEN_ANSWER",
+    "correct_answer": 18.015,
+    "options": [],
+    "difficulty": 2
+  },
+  {
+    "id": 20,
+    "text": "How many times has the Olympic Games been held?",
+    "category": "Sports",
+    "question_type": "MULTIPLE_CHOICE",
+    "correct_answer": "Over 130 times",
+    "options": ["Over 50 times", "Over 80 times", "Over 130 times", "Over 200 times"],
+    "difficulty": 2
+  }
+]

@@ -17,7 +17,7 @@ except ImportError as e:
 def main() -> NoReturn:
     """
     Main function that initializes and runs the game.
-    
+
     This function:
     1. Initializes Pygame and its modules
     2. Creates game configuration
@@ -29,7 +29,7 @@ def main() -> NoReturn:
     if not initialize_pygame():
         print("Failed to initialize Pygame. Exiting.")
         sys.exit(1)
-    
+
     try:
         # Create game configuration
         config: GameConfig = GameConfig.load()
@@ -37,14 +37,14 @@ def main() -> NoReturn:
 
         # Initialize the main game
         game: Game = Game(config)
-        
+
         # Run the main game loop
         game.run()
-        
+
     except Exception as e:
         print(f"Fatal error occurred: {e}")
         traceback.print_exc()
-    
+
     # Ensure clean exit
     finally:
         cleanup_pygame()
@@ -54,23 +54,23 @@ def main() -> NoReturn:
 def initialize_pygame() -> bool:
     """
     Initialize Pygame and its required modules.
-    
+
     Returns:
         bool: True if initialization was successful, False otherwise
     """
     try:
         # Initialize Pygame core
         pygame.init()
-        
+
         # Initialize specific Pygame modules
         if not pygame.font.get_init():
             pygame.font.init()
-            
+
         if not pygame.mixer.get_init():
             pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
-            
+
         return True
-        
+
     except pygame.error as e:
         print(f"Pygame initialization error: {e}")
         return False

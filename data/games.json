@@ -1,0 +1,22 @@
+[
+  {
+    "username": "Player",
+    "score": 1,
+    "mode": "endless"
+  },
+  {
+    "username": "Player2",
+    "score": 2,
+    "mode": "endless"
+  },
+  {
+    "username": "Player3",
+    "score": 5,
+    "mode": "endless"
+  },
+  {
+    "username": "Player",
+    "score": 9000,
+    "mode": "normal"
+  }
+]
