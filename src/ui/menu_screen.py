@@ -93,8 +93,12 @@ class MenuScreen:
         # Player Name input
         self.name_input_rect = pygame.Rect(screen_width // 2 - 150, 170, 300, 35)
 
-        # Start Game button
-        start_rect = pygame.Rect(screen_width // 2 - 100, screen_height - 100, 200, 50)
+        # Endless mode button
+        endless_rect = pygame.Rect(20, 20, 120, 40)
+        self.buttons.append(MenuButton(endless_rect, "Endless Mode", "endless"))
+
+        # Start Game button (below Endless)
+        start_rect = pygame.Rect(20, 70, 120, 40)
         self.buttons.append(MenuButton(start_rect, "Start Game", "start"))
 
         # Settings buttons
@@ -127,10 +131,6 @@ class MenuScreen:
 
         turns_slider_rect = pygame.Rect(screen_width // 2 - 10, settings_y + button_spacing * 4 + 15, 210, 10)
         self.sliders["turns"] = turns_slider_rect
-
-        # Endless mode button
-        endless_rect = pygame.Rect(20, 20, 120, 40)
-        self.buttons.append(MenuButton(endless_rect, "Endless Mode", "endless"))
 
     def draw(self) -> None:
         """Draw the menu screen."""
