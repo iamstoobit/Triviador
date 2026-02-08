@@ -214,10 +214,11 @@ class MenuScreen:
             if self.player_name
             else self.colors.text_secondary
         )
+        text_y = self.name_input_rect.y + (self.name_input_rect.height - text_font.get_height()) // 2
         draw_text(
             self.screen,
             display_text,
-            (self.name_input_rect.x + 10, self.name_input_rect.centery),
+            (self.name_input_rect.x + 10, text_y),
             text_font,
             text_color,
             centered=False
