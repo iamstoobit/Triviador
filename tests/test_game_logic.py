@@ -163,7 +163,7 @@ class TestRegion(unittest.TestCase):
         """Test fortification state."""
         self.assertFalse(self.region1.is_fortified())
 
-        self.region1.fortification = FortificationLevel.LEVEL_1
+        self.region1.fortification = FortificationLevel.FORTIFIED
         self.assertTrue(self.region1.is_fortified())
 
     def test_region_type_capital(self) -> None:
@@ -325,7 +325,7 @@ class TestGameLogic(unittest.TestCase):
             name="Fortress",
             position=(100.0, 100.0),
             owner_id=player_id,
-            fortification=FortificationLevel.LEVEL_3
+            fortification=FortificationLevel.FORTIFIED
         )
         self.state.regions[1] = region
 
